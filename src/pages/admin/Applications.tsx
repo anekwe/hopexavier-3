@@ -100,31 +100,15 @@ export default function Applications() {
 
   const updateStatus = async (id: string, status: string, appData?: any) => {
     try {
-      let isLocal = String(id).startsWith('local_');
-      let isUpdated = false;
-
-      if (!isLocal) {
-         const { error } = await supabase
-           .from('applications')
-           .update({ status })
-           .eq('id', id);
-         if (error) throw error;
-         isUpdated = true;
-      } else {
-         const localApps = JSON.parse(localStorage.getItem('local_applications') || '[]');
-         const index = localApps.findIndex((a: any) => a.id === id);
-         if (index !== -1) {
-            localApps[index].status = status;
-            localStorage.setItem('local_applications', JSON.stringify(localApps));
-            isUpdated = true;
-         }
-      }
+      const { error } = await supabase
+        .from('applications')
+        .update({ status })
+        .eq('id', id);
+      if (error) throw error;
 
       if (status === 'Accepted' && appData) {
-         if (isUpdated) {
-            toast.success(`Application updated to ${status}. Applicant can now be registered.`);
-         }
-      } else if (isUpdated) {
+         toast.success(`Application updated to ${status}. Applicant can now be registered.`);
+      } else {
          toast.success(`Application updated to ${status}`);
       }
       

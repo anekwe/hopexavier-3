@@ -51,15 +51,11 @@ export default function Settings() {
         throw error;
       }
       
-      localStorage.setItem('local_marquee_text', marqueeText);
       window.dispatchEvent(new Event('marqueeUpdated'));
       toast.success('Marquee text updated successfully!');
     } catch (error: any) {
       console.error('Save Settings Error:', error);
-      
-      localStorage.setItem('local_marquee_text', marqueeText);
-      window.dispatchEvent(new Event('marqueeUpdated'));
-      toast.success('Settings saved successfully (Local Storage Mode)');
+      toast.error('Failed to save settings to database.');
     } finally {
       setIsSubmitting(false);
     }

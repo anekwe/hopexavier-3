@@ -30,38 +30,26 @@ export default function AdminJobs() {
   const fetchApplications = async () => {
     setLoading(true);
     try {
-      if (!supabase) throw new Error("Supabase is not configured.");
-      
-      const dbPromise = supabase
+      const { data, error } = await supabase
         .from('job_applications')
         .select('*')
         .order('created_at', { ascending: false });
 
-      const timeoutPromise = new Promise<{ data: any, error: any }>((resolve) => 
-        setTimeout(() => resolve({ data: null, error: new Error('TIMEOUT') }), 8000)
-      );
+      let loadedData = data || [];
 
-      const { data, error } = await Promise.race([dbPromise, timeoutPromise]) as { data: any, error: any };
-      
-      let loadedData: any[] = [];
       if (error) {
-        if (error.message === 'TIMEOUT') {
-           console.warn("Supabase request timed out. Loading local data.");
-        } else if (error.code === '42P01' || error.message?.includes('does not exist') || error.message?.includes('schema cache') || error.code?.startsWith('PGRST')) {
-           console.warn("Table does not exist or schema cache issue. Please run the SQL schema.");
+        if (error.code === '42P01' || (error.message && error.message.includes("relation") && error.message.includes("does not exist"))) {
+           console.warn("Table does not exist. Please run the SQL schema.");
         } else {
            console.error("Supabase error:", error);
         }
-      } else if (data) {
-        loadedData = data;
       }
-      
+
       try {
          const localApps = JSON.parse(localStorage.getItem('local_job_applications') || '[]');
-         const newLocalApps = localApps.filter((la: any) => !loadedData.find(d => d.email_address === la.email_address));
-         loadedData = [...newLocalApps, ...loadedData];
-      } catch(e) {}
-      
+         loadedData = [...localApps, ...loadedData];
+      } catch (err) {}
+
       setApplications(loadedData);
     } catch (e: any) {
       console.error("Error fetching job applications:", e);
@@ -77,19 +65,20 @@ export default function AdminJobs() {
 
   const updateStatus = async (id: string, newStatus: string) => {
      try {
-         if (!supabase) throw new Error("Supabase is not configured.");
-         const { error } = await supabase.from('job_applications').update({ application_status: newStatus }).eq('id', id);
-         
-         if (error) {
-             if (error.code === '42P01' || error.message?.includes('does not exist') || error.message?.includes('schema cache') || error.code?.startsWith('PGRST')) {
-                 const localApps = JSON.parse(localStorage.getItem('local_job_applications') || '[]');
-                 const updated = localApps.map((a: any) => a.id === id ? { ...a, application_status: newStatus } : a);
-                 localStorage.setItem('local_job_applications', JSON.stringify(updated));
-                 setApplications(updated);
-                 toast.success(`Status updated to ${newStatus}`);
-                 return;
+         let isLocal = String(id).startsWith('local_');
+
+         if (!isLocal) {
+             const { error } = await supabase.from('job_applications').update({ application_status: newStatus }).eq('id', id);
+             if (error) {
+                 throw error;
              }
-             throw error;
+         } else {
+             const localApps = JSON.parse(localStorage.getItem('local_job_applications') || '[]');
+             const index = localApps.findIndex((a: any) => a.id === id);
+             if (index !== -1) {
+                localApps[index].application_status = newStatus;
+                localStorage.setItem('local_job_applications', JSON.stringify(localApps));
+             }
          }
          
          toast.success(`Status updated to ${newStatus}`);

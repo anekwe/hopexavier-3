@@ -61,20 +61,12 @@ export default function Contact() {
     (async () => {
       try {
         if (supabase) {
-          const timeoutPromise = new Promise<{ error: any }>((_, reject) => 
-            setTimeout(() => reject(new Error("Network timeout: Supabase unreachable")), 10000)
-          );
-          const dbPromise = supabase.from('contacts').insert([formData]);
-          const result: any = await Promise.race([dbPromise, timeoutPromise]);
-          if (result && result.error) throw result.error;
+          const { error } = await supabase.from('contacts').insert([formData]);
+          if (error) throw error;
         }
       } catch (e) {
-         console.warn("Supabase insert failed, relying on local storage", e);
+         console.error("Supabase insert failed", e);
       }
-      
-      const localContacts = JSON.parse(localStorage.getItem('local_contacts') || '[]');
-      localContacts.push({ ...formData, id: `local_${Date.now()}`, created_at: new Date().toISOString() });
-      localStorage.setItem('local_contacts', JSON.stringify(localContacts));
     })();
 
     setFormData({ name: '', email: '', phone: '', message: '' });

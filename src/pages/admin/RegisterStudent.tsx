@@ -246,18 +246,10 @@ export default function RegisterStudent() {
       };
 
       // Ensure that 'registered_students' table exists. 
-      // Falling back to 'students' to test connection, but user requested corresponding table.
-      // We'll create the record in a 'registered_students' table.
-      try {
-         const { error } = await supabase.from('registered_students').insert([studentData]);
-         if (error) throw error;
-      } catch (err: any) {
-         console.warn("Supabase insert failed, relying on local storage", err);
+      const { error } = await supabase.from('registered_students').insert([studentData]);
+      if (error) {
+         throw error;
       }
-      
-      const localStudents = JSON.parse(localStorage.getItem('local_students') || '[]');
-      localStudents.push({ ...studentData, id: `local_${Date.now()}`, created_at: new Date().toISOString() });
-      localStorage.setItem('local_students', JSON.stringify(localStudents));
 
       toast.success(`Successfully registered! Reg No: ${regNumber}`);
       navigate('/admin/dashboard/students');

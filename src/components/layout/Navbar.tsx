@@ -16,30 +16,20 @@ export default function Navbar() {
         const timeoutPromise = new Promise<{ data: any, error: any }>((resolve) => setTimeout(() => resolve({ data: null, error: new Error('TIMEOUT') }), 5000));
         const res: any = await Promise.race([dbPromise, timeoutPromise]);
         
-        let loaded = false;
         if (res.data && res.data.value) {
            setMarqueeText(res.data.value);
-           loaded = true;
         } else if (res.error && res.error.message !== 'TIMEOUT' && res.error.code !== 'PGRST116') {
            console.warn("Could not fetch marquee text from Supabase:", res.error);
         }
-
-        if (!loaded) {
-           const localText = localStorage.getItem('local_marquee_text');
-           if (localText) setMarqueeText(localText);
-        }
       } catch (error) {
-        // Fallback to local storage if DB fails
-        const localText = localStorage.getItem('local_marquee_text');
-        if (localText) setMarqueeText(localText);
+        console.error(error);
       }
     };
     
     fetchMarquee();
 
     const handleLocalUpdate = () => {
-        const localText = localStorage.getItem('local_marquee_text');
-        if (localText) setMarqueeText(localText);
+        fetchMarquee();
     };
 
     window.addEventListener('marqueeUpdated', handleLocalUpdate);

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Phone, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +11,9 @@ import { toast } from 'sonner';
 export default function WhatsAppWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const location = useLocation();
+  const isAdmin = location.pathname.startsWith('/admin');
+
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -133,8 +137,13 @@ export default function WhatsAppWidget() {
       )}
       
       <button 
-        onClick={() => setIsOpen(!isOpen)}
-        className="h-16 w-16 bg-[#25D366] hover:bg-[#128C7E] text-white rounded-full flex items-center justify-center shadow-lg transition-transform hover:scale-105 animate-bounce cursor-pointer"
+        onClick={() => {
+          if (isAdmin) return;
+          setIsOpen(!isOpen);
+        }}
+        className={`h-16 w-16 bg-[#25D366] hover:bg-[#128C7E] text-white rounded-full flex items-center justify-center shadow-lg transition-transform ${isAdmin ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105 animate-bounce cursor-pointer'}`}
+        disabled={isAdmin}
+        title={isAdmin ? 'WhatsApp bot is disabled for admins' : ''}
       >
         {isOpen ? <X className="h-8 w-8" /> : <Phone className="h-8 w-8" />}
       </button>

@@ -60,31 +60,20 @@ export default function Apply() {
     }
 
     setLoading(true);
-    try {
-      const payload = {
-        ...formData,
-        status: 'Pending'
-      };
+    const payload = {
+      ...formData,
+      status: 'Pending'
+    };
 
-      try {
-         const timeoutPromise = new Promise<{error: any}>((_, reject) => setTimeout(() => reject(new Error("Network timeout")), 8000));
-         const dbPromise = supabase.from('applications').insert([payload]);
-         const { error: dbError } = await Promise.race([dbPromise, timeoutPromise]) as {error: any};
-         if (dbError) throw dbError;
-      } catch (e: any) {
-         console.warn("Supabase insert failed, relying on local storage", e);
-      }
-      
-      // Fallback: save to LocalStorage for local testing
-      const localApps = JSON.parse(localStorage.getItem('local_applications') || '[]');
-      localApps.push({ ...payload, id: `local_${Date.now()}`, created_at: new Date().toISOString() });
-      localStorage.setItem('local_applications', JSON.stringify(localApps));
+    try {
+      const { error: dbError } = await supabase.from('applications').insert([payload]);
+      if (dbError) throw dbError;
       
       setSubmitted(true);
       toast.success('Application submitted successfully!');
     } catch (error: any) {
-      console.error(error);
-      toast.error(`Failed to submit application: ${error?.message || 'Unknown error'}`);
+      console.error("Supabase insert error:", error);
+      toast.error(`Failed to submit application: ${error?.message || 'Database error occurred'}`);
     } finally {
       setLoading(false);
     }

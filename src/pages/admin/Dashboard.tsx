@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, FileText, Mailbox, Activity, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -26,8 +27,14 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [resetting, setResetting] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
+  const [resetPin, setResetPin] = useState('');
 
   const handleReset = async () => {
+    if (resetPin !== 'hopexavier_1986_nov') {
+      toast.error('Not Authorized to do this!');
+      return;
+    }
+
     setResetting(true);
     try {
       // Clear localStorage defaults used in this app
@@ -79,20 +86,7 @@ export default function Dashboard() {
         ]);
 
         const activities: any[] = [];
-        let localApps: any[] = [];
-        let localJobApps: any[] = [];
-        let localContacts: any[] = [];
-        let localStudents: any[] = [];
-        let localPosts: any[] = [];
-
-        try {
-           localApps = JSON.parse(localStorage.getItem('local_applications') || '[]');
-           localJobApps = JSON.parse(localStorage.getItem('local_job_applications') || '[]');
-           localContacts = JSON.parse(localStorage.getItem('local_contacts') || '[]');
-           localStudents = JSON.parse(localStorage.getItem('local_students') || '[]');
-           localPosts = JSON.parse(localStorage.getItem('local_posts') || '[]');
-        } catch(e) {}
-
+        
         const dbAppCount = appRes?.count || 0;
         const dbJobAppCount = jobAppRes?.count || 0;
         const dbStuCount = stuRes?.count || 0;
@@ -100,11 +94,11 @@ export default function Dashboard() {
         const dbContCount = contRes?.count || 0;
 
         setStats({
-          applications: Math.max(dbAppCount, localApps.length + dbAppCount),
-          jobApplications: Math.max(dbJobAppCount, localJobApps.length + dbJobAppCount),
-          students: Math.max(dbStuCount, localStudents.length + dbStuCount),
-          posts: Math.max(dbPostCount, localPosts.length + dbPostCount),
-          contacts: Math.max(dbContCount, localContacts.length + dbContCount),
+          applications: dbAppCount,
+          jobApplications: dbJobAppCount,
+          students: dbStuCount,
+          posts: dbPostCount,
+          contacts: dbContCount,
         });
 
         // Also fetch recent applications and contacts
@@ -114,9 +108,9 @@ export default function Dashboard() {
           safeFetch(supabase.from('contacts').select('id, created_at, name, message').order('created_at', { ascending: false }).limit(3))
         ]);
 
-        const combinedApps = [...localApps, ...(recentApps.data || [])];
-        const combinedJobApps = [...localJobApps, ...(recentJobApps.data || [])];
-        const combinedContacts = [...localContacts, ...(recentContacts.data || [])];
+        const combinedApps = [...(recentApps.data || [])];
+        const combinedJobApps = [...(recentJobApps.data || [])];
+        const combinedContacts = [...(recentContacts.data || [])];
 
         // Merge and sort
         if (combinedApps.length > 0) {
@@ -197,6 +191,14 @@ export default function Dashboard() {
                   <li>Contacts / Messages</li>
                 </ul>
                 This action is irreversible and should only be used to clear out test data before live production.
+                <div className="mt-4">
+                  <Input 
+                    type="password" 
+                    placeholder="Enter approval pin to authorize..." 
+                    value={resetPin}
+                    onChange={(e) => setResetPin(e.target.value)}
+                  />
+                </div>
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="gap-2 sm:gap-0 mt-4">

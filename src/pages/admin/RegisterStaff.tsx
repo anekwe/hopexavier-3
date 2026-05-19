@@ -215,20 +215,7 @@ export default function RegisterStaff() {
       const { error } = await supabase.from('staff_documentation').insert([payload]);
 
       if (error) {
-         if (error.code === '42P01' || error.message?.includes('does not exist') || error.message?.includes('schema cache') || error.code?.startsWith('PGRST')) {
-             console.warn('Handling locally.');
-             const localStaff = JSON.parse(localStorage.getItem('local_staff_docs') || '[]');
-             if (localStaff.some((st: any) => st.staff_number === payload.staff_number || st.email_address === payload.email_address)) {
-                toast.error("Staff with this number or email already exists locally.");
-                setLoading(false);
-                return;
-             }
-             const id = Date.now().toString();
-             localStaff.push({...payload, id, created_at: new Date().toISOString()});
-             localStorage.setItem('local_staff_docs', JSON.stringify(localStaff));
-         } else {
-             throw error;
-         }
+         throw error;
       }
 
       toast.success('Staff documented successfully!');

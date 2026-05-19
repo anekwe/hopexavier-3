@@ -4,6 +4,7 @@
  */
 
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import ScrollToTop from '@/components/ScrollToTop';
 import RootLayout from '@/components/layout/RootLayout';
 import Home from './pages/public/Home';
 import About from './pages/public/About';
@@ -36,7 +37,6 @@ import { Toaster } from 'sonner';
 export default function App() {
   return (
     <AuthProvider>
-      <WhatsAppWidget />
       {/* Global Background Watermark */}
       <div 
         className="fixed inset-0 z-50 opacity-[0.03] pointer-events-none"
@@ -48,6 +48,8 @@ export default function App() {
         }}
       />
       <BrowserRouter>
+        <ScrollToTop />
+        <WhatsAppWidget />
         <Routes>
           {/* Public Routes */}
           <Route path="/" element={<RootLayout />}>

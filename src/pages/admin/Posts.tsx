@@ -168,62 +168,14 @@ export default function Posts() {
 
       const postData = { ...formData, image_url: finalImageUrl };
       
-      let isLocal = editingPostId && String(editingPostId).startsWith('local_');
-      let isSaved = false;
-
-      if (editingPostId && !isLocal) {
-         try {
-            const timeoutPromise = new Promise<{error: any}>((_, reject) => setTimeout(() => reject(new Error("Network timeout")), 8000));
-            const dbPromise = supabase.from('posts').update(postData).eq('id', editingPostId);
-            const { error: dbError } = await Promise.race([dbPromise, timeoutPromise]) as {error: any};
-            if (dbError) throw dbError;
-            toast.success('Post updated successfully!');
-         } catch (dbErr: any) {
-            console.warn("Database error, falling back to local storage", dbErr);
-            const localPosts = JSON.parse(localStorage.getItem('local_posts') || '[]');
-            const index = localPosts.findIndex((p: any) => p.id === editingPostId);
-            if (index !== -1) {
-                localPosts[index] = { ...localPosts[index], ...postData };
-            } else {
-                // The post wasn't local yet, we must push it as an override to local storage
-                localPosts.unshift({ id: editingPostId, ...postData });
-            }
-            try {
-               localStorage.setItem('local_posts', JSON.stringify(localPosts));
-               toast.success('Post updated locally (Supabase write failed)');
-            } catch(e) {
-               toast.error('Post too large to save locally. Please check your database settings.');
-            }
-         }
-      } else if (!editingPostId) {
-         try {
-            const timeoutPromise = new Promise<{error: any}>((_, reject) => setTimeout(() => reject(new Error("Network timeout")), 8000));
-            const dbPromise = supabase.from('posts').insert([postData]);
-            const { error: dbError } = await Promise.race([dbPromise, timeoutPromise]) as {error: any};
-            if (dbError) throw dbError;
-            toast.success('Post created successfully!');
-         } catch (dbErr: any) {
-            console.warn("Database error, falling back to local storage", dbErr);
-            const localPosts = JSON.parse(localStorage.getItem('local_posts') || '[]');
-            const newPost = { id: 'local_' + Date.now(), ...postData, created_at: new Date().toISOString() };
-            localPosts.unshift(newPost);
-            try {
-               localStorage.setItem('local_posts', JSON.stringify(localPosts));
-               toast.success('Post created locally (Supabase write failed)');
-            } catch(e) {
-               toast.error('Post too large to save locally. Try a smaller image.');
-            }
-         }
-      } else if (isLocal) {
-         const localPosts = JSON.parse(localStorage.getItem('local_posts') || '[]');
-         const index = localPosts.findIndex((p: any) => p.id === editingPostId);
-         if (index !== -1) localPosts[index] = { ...localPosts[index], ...postData };
-         try {
-            localStorage.setItem('local_posts', JSON.stringify(localPosts));
-            toast.success('Post updated locally!');
-         } catch(e) {
-            toast.error('Post too large to save locally. Please check your system limits.');
-         }
+      if (editingPostId) {
+         const { error: dbError } = await supabase.from('posts').update(postData).eq('id', editingPostId);
+         if (dbError) throw dbError;
+         toast.success('Post updated successfully!');
+      } else {
+         const { error: dbError } = await supabase.from('posts').insert([postData]);
+         if (dbError) throw dbError;
+         toast.success('Post created successfully!');
       }
 
       setFormData({ title: '', slug: '', excerpt: '', content: '', image_url: '' });
@@ -246,24 +198,9 @@ export default function Posts() {
   const handleDelete = async (id: string) => {
     if (!window.confirm('Are you sure you want to delete this post?')) return;
     try {
-      if (String(id).startsWith('local_')) {
-          let localPosts = JSON.parse(localStorage.getItem('local_posts') || '[]');
-          localPosts = localPosts.filter((p: any) => p.id !== id);
-          localStorage.setItem('local_posts', JSON.stringify(localPosts));
-          toast.success('Local post deleted successfully!');
-      } else {
-          try {
-             const timeoutPromise = new Promise<{error: any}>((_, reject) => setTimeout(() => reject(new Error("Network timeout")), 8000));
-             const dbPromise = supabase.from('posts').delete().eq('id', id);
-             const { error } = await Promise.race([dbPromise, timeoutPromise]) as {error: any};
-             if (error) throw error;
-             toast.success('Post deleted successfully!');
-          } catch(e) {
-             toast.error('Failed to delete post from remote database.');
-             console.error(e);
-             return;
-          }
-      }
+      const { error } = await supabase.from('posts').delete().eq('id', id);
+      if (error) throw error;
+      toast.success('Post deleted successfully!');
       fetchPosts();
     } catch (error: any) {
       toast.error('Failed to delete post.');

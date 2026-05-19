@@ -92,11 +92,6 @@ export default function Jobs() {
       if (existingApp) {
         isDuplicate = true;
       }
-      
-      const localApps = JSON.parse(localStorage.getItem('local_job_applications') || '[]');
-      if (localApps.some((a: any) => a.email_address === formData.email_address)) {
-        isDuplicate = true;
-      }
 
       if (isDuplicate) {
         toast.error('An application with this email already exists.');
@@ -117,16 +112,7 @@ export default function Jobs() {
         .insert([payload]);
 
       if (error) {
-        if (error.code === '42P01' || error.message?.includes('does not exist') || error.message?.includes('schema cache') || error.code?.startsWith('PGRST')) {
-            console.warn("job_applications table missing or schema cache issue. Using local storage");
-            const currentLocalApps = JSON.parse(localStorage.getItem('local_job_applications') || '[]');
-            payload.id = Date.now().toString();
-            payload.created_at = new Date().toISOString();
-            currentLocalApps.push(payload);
-            localStorage.setItem('local_job_applications', JSON.stringify(currentLocalApps));
-        } else {
-            throw error;
-        }
+         throw error;
       }
 
       toast.success('Your job application has been submitted successfully!');

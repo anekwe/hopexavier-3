@@ -12,7 +12,7 @@ export default function Services() {
 
         <div className="grid lg:grid-cols-2 gap-12 mb-20">
           <div>
-             <h2 className="text-[1.15rem] min-[420px]:text-xl md:text-2xl font-bold mb-6 flex items-center gap-2 md:gap-3 text-brand-green whitespace-nowrap md:whitespace-normal tracking-tight md:tracking-normal"><BookOpen className="text-brand-green h-5 w-5 md:h-6 md:w-6 shrink-0"/> Junior Secondary (JS1 - JS3)</h2>
+             <h2 className="text-[0.95rem] min-[380px]:text-[1.05rem] min-[420px]:text-xl md:text-2xl font-bold mb-6 flex items-center gap-2 md:gap-3 text-brand-green whitespace-nowrap md:whitespace-normal tracking-tight md:tracking-normal"><BookOpen className="text-brand-green h-5 w-5 md:h-6 md:w-6 shrink-0"/> Junior Secondary (JS1 - JS3)</h2>
              <p className="text-muted-foreground mb-6">Our Junior Secondary program provides a solid foundation across a wide range of subjects, helping students discover their interests and aptitudes. We focus on core competencies in Mathematics, English, Basic Sciences, and Social Studies.</p>
              <ul className="space-y-2 list-disc pl-5 text-muted-foreground">
                <li>Pre-vocational studies</li>
@@ -22,7 +22,7 @@ export default function Services() {
              </ul>
           </div>
           <div>
-            <h2 className="text-[1.12rem] min-[420px]:text-xl md:text-2xl font-bold mb-6 flex items-center gap-2 md:gap-3 text-brand-green whitespace-nowrap md:whitespace-normal tracking-tight md:tracking-normal"><Microscope className="text-brand-pink h-5 w-5 md:h-6 md:w-6 shrink-0"/> Senior Secondary (SS1 - SS3)</h2>
+            <h2 className="text-[0.95rem] min-[380px]:text-[1.05rem] min-[420px]:text-xl md:text-2xl font-bold mb-6 flex items-center gap-2 md:gap-3 text-brand-green whitespace-nowrap md:whitespace-normal tracking-tight md:tracking-normal"><Microscope className="text-brand-pink h-5 w-5 md:h-6 md:w-6 shrink-0"/> Senior Secondary (SS1 - SS3)</h2>
              <p className="text-muted-foreground mb-6">Students specialize in pathways that align with their career goals. We offer rigorous preparation for standard national and international examinations (WAEC, NECO, IGCSE).</p>
              <ul className="space-y-2 list-disc pl-5 text-muted-foreground">
                <li><strong>STEM Pathway:</strong> Physics, Chemistry, Biology, Further Mathematics.</li>

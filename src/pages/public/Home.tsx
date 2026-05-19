@@ -113,7 +113,7 @@ export default function Home() {
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent"></div>
               <div className="relative z-10 p-8 text-white w-full">
                 <GraduationCap className="h-8 w-8 mb-3 text-brand-pink" />
-                <h3 className="text-[1.15rem] min-[420px]:text-xl md:text-2xl font-bold mb-2 whitespace-nowrap md:whitespace-normal tracking-tight md:tracking-normal">Junior Secondary (JS1 - JS3)</h3>
+                <h3 className="text-[0.95rem] min-[380px]:text-[1.05rem] min-[420px]:text-xl md:text-2xl font-bold mb-2 whitespace-nowrap md:whitespace-normal tracking-tight md:tracking-normal">Junior Secondary (JS1 - JS3)</h3>
                 <p className="text-gray-200">Building a strong foundational knowledge base across sciences, arts, and technology.</p>
               </div>
             </div>
@@ -122,7 +122,7 @@ export default function Home() {
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent"></div>
               <div className="relative z-10 p-8 text-white w-full">
                 <BookOpen className="h-8 w-8 mb-3 text-brand-pink" />
-                <h3 className="text-[1.12rem] min-[420px]:text-xl md:text-2xl font-bold mb-2 whitespace-nowrap md:whitespace-normal tracking-tight md:tracking-normal">Senior Secondary (SS1 - SS3)</h3>
+                <h3 className="text-[0.95rem] min-[380px]:text-[1.05rem] min-[420px]:text-xl md:text-2xl font-bold mb-2 whitespace-nowrap md:whitespace-normal tracking-tight md:tracking-normal">Senior Secondary (SS1 - SS3)</h3>
                 <p className="text-gray-200">Specialized pathways in STEM and Arts/Humanities preparing students for higher education.</p>
               </div>
             </div>

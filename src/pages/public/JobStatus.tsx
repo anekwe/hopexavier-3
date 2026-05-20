@@ -41,11 +41,6 @@ export default function JobStatus() {
       if (error) {
         if (error.code === 'PGRST116') {
           toast.error("No application found with that email address.");
-        } else if (error.code === '42P01' || error.message?.includes('does not exist') || error.message?.includes('schema cache') || error.code?.startsWith('PGRST')) {
-            const localApps = JSON.parse(localStorage.getItem('local_job_applications') || '[]');
-            const app = localApps.find((a: any) => a.email_address === email);
-            if (app) setApplication(app);
-            else toast.error("No application found.");
         } else {
              throw error;
         }

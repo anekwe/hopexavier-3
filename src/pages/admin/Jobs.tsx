@@ -25,6 +25,19 @@ export default function AdminJobs() {
 
   useEffect(() => {
     fetchApplications();
+
+    if (supabase) {
+      const channel = supabase
+        .channel('job_applications_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'job_applications' }, () => {
+          fetchApplications();
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
   }, []);
 
   const fetchApplications = async () => {
@@ -35,29 +48,15 @@ export default function AdminJobs() {
         .select('*')
         .order('created_at', { ascending: false });
 
-      let loadedData = data || [];
-
       if (error) {
-        if (error.code === '42P01' || (error.message && error.message.includes("relation") && error.message.includes("does not exist"))) {
-           console.warn("Table does not exist. Please run the SQL schema.");
-        } else {
-           console.error("Supabase error:", error);
-        }
+         console.error("Supabase error:", error);
+         toast.error("Failed to fetch applications: " + error.message);
+      } else {
+         setApplications(data || []);
       }
-
-      try {
-         const localApps = JSON.parse(localStorage.getItem('local_job_applications') || '[]');
-         loadedData = [...localApps, ...loadedData];
-      } catch (err) {}
-
-      setApplications(loadedData);
     } catch (e: any) {
       console.error("Error fetching job applications:", e);
-      let localApps = [];
-      try {
-         localApps = JSON.parse(localStorage.getItem('local_job_applications') || '[]');
-      } catch (err) {}
-      setApplications(localApps);
+      toast.error("Error fetching job applications");
     } finally {
       setLoading(false);
     }
@@ -65,20 +64,9 @@ export default function AdminJobs() {
 
   const updateStatus = async (id: string, newStatus: string) => {
      try {
-         let isLocal = String(id).startsWith('local_');
-
-         if (!isLocal) {
-             const { error } = await supabase.from('job_applications').update({ application_status: newStatus }).eq('id', id);
-             if (error) {
-                 throw error;
-             }
-         } else {
-             const localApps = JSON.parse(localStorage.getItem('local_job_applications') || '[]');
-             const index = localApps.findIndex((a: any) => a.id === id);
-             if (index !== -1) {
-                localApps[index].application_status = newStatus;
-                localStorage.setItem('local_job_applications', JSON.stringify(localApps));
-             }
+         const { error } = await supabase.from('job_applications').update({ application_status: newStatus }).eq('id', id);
+         if (error) {
+             throw error;
          }
          
          toast.success(`Status updated to ${newStatus}`);

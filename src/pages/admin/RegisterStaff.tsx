@@ -49,27 +49,13 @@ export default function RegisterStaff() {
         .select('*')
         .eq('application_status', 'Employed');
       
-      let loadedData = data || [];
       if (error) {
-         if (error.code === '42P01' || error.message?.includes('does not exist') || error.message?.includes('schema cache') || error.code?.startsWith('PGRST')) {
-             console.warn("job_applications missing");
-         } else {
-             throw error;
-         }
+         console.warn("Error fetching employed applicants");
+         return;
       }
-
-      const localApps = JSON.parse(localStorage.getItem('local_job_applications') || '[]');
-      const localEmployed = localApps.filter((a: any) => a.application_status === 'Employed');
-      
-      const uniqueLocal = localEmployed.filter((la: any) => !loadedData.find((d: any) => d.email_address === la.email_address));
-      loadedData = [...uniqueLocal, ...loadedData];
-      
-      setEmployedApplicants(loadedData);
+      setEmployedApplicants(data || []);
     } catch (e) {
       console.error(e);
-      const localApps = JSON.parse(localStorage.getItem('local_job_applications') || '[]');
-      const localEmployed = localApps.filter((a: any) => a.application_status === 'Employed');
-      setEmployedApplicants(localEmployed);
     }
   };
 
@@ -84,16 +70,7 @@ export default function RegisterStaff() {
         .limit(1);
 
       if (error) {
-          if (error.code === '42P01' || error.message?.includes('does not exist') || error.message?.includes('schema cache') || error.code?.startsWith('PGRST')) {
-              // Local fallback counting
-              const localStaff = JSON.parse(localStorage.getItem('local_staff_docs') || '[]');
-              if (localStaff.length > 0) {
-                 const lastNum = localStaff[localStaff.length - 1].staff_number;
-                 const parts = lastNum.split('/');
-                 const lastSeq = parseInt(parts[2], 10);
-                 return `STF/${currentYear}/${String(lastSeq + 1).padStart(3, '0')}`;
-              }
-          }
+          console.warn("Could not generate staff from DB");
       }
 
       if (data && data.length > 0) {

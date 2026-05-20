@@ -27,45 +27,20 @@ export default function Posts() {
     try {
       if (!supabase) throw new Error("Supabase is not configured.");
       
-      const dbPromise = supabase
+      const { data, error } = await supabase
         .from('posts')
         .select('*')
         .order('created_at', { ascending: false });
 
-      const timeoutPromise = new Promise<{ data: any, error: any }>((resolve) => 
-        setTimeout(() => resolve({ data: null, error: new Error('TIMEOUT') }), 8000)
-      );
-
-      const { data, error } = await Promise.race([dbPromise, timeoutPromise]) as { data: any, error: any };
-
-      let loadedData = [];
       if (error) {
-         if (error.message === 'TIMEOUT') {
-            console.warn("Supabase request timed out. Loading local data.");
-         } else if (error.code === '42P01' || error.message?.includes('does not exist')) {
-            console.warn("Table posts does not exist. Please run the SQL schema.");
-         } else {
-            console.error("Supabase error:", error);
-         }
-      } else if (data) {
-         loadedData = data;
+         console.error("Supabase error:", error);
+         toast.error("Failed to fetch posts: " + error.message);
+      } else {
+         setPosts(data || []);
       }
-
-      try {
-         const localPosts = JSON.parse(localStorage.getItem('local_posts') || '[]');
-         // Filter out loadedData that are already in localPosts (overrides)
-         const localIds = new Set(localPosts.map((p: any) => p.id));
-         loadedData = loadedData.filter((p: any) => !localIds.has(p.id));
-         loadedData = [...localPosts, ...loadedData];
-      } catch(e) {}
-      setPosts(loadedData);
     } catch (e: any) {
        console.error("Error fetching posts:", e);
-       let localPosts = [];
-       try {
-          localPosts = JSON.parse(localStorage.getItem('local_posts') || '[]');
-       } catch(er) {}
-       setPosts(localPosts);
+       toast.error("Error fetching posts");
     } finally {
       setLoading(false);
     }
@@ -73,6 +48,19 @@ export default function Posts() {
 
   useEffect(() => {
     fetchPosts();
+
+    if (supabase) {
+      const channel = supabase
+        .channel('posts_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => {
+          fetchPosts();
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
   }, []);
 
   const handleChange = (e: any) => {

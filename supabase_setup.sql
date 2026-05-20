@@ -365,3 +365,33 @@ BEGIN
     CREATE POLICY "Admin full access on broadcasts" ON public.broadcasts FOR ALL USING (true) WITH CHECK(true);
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
+
+-- 10. Enable realtime on all relevant tables
+DO $$
+BEGIN
+    -- This handles the supabase_realtime publication
+    IF NOT EXISTS (
+        SELECT 1 
+        FROM pg_publication 
+        WHERE pubname = 'supabase_realtime'
+    ) THEN
+        CREATE PUBLICATION supabase_realtime;
+    END IF;
+END $$;
+
+DO $$
+DECLARE
+    t text;
+BEGIN
+    FOR t IN 
+        SELECT unnest(ARRAY['applications', 'job_applications', 'registered_students', 'posts', 'contacts', 'staff_documentation', 'site_settings'])
+    LOOP
+        BEGIN
+            EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE public.%I', t);
+        EXCEPTION
+            WHEN duplicate_object THEN
+                -- Ignore if it is already added
+                NULL;
+        END;
+    END LOOP;
+END $$;

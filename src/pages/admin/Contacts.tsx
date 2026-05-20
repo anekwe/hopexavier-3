@@ -6,53 +6,43 @@ export default function Contacts() {
   const [contacts, setContacts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchContacts = async () => {
-      setLoading(true);
-      try {
-        if (!supabase) throw new Error("Supabase is not configured.");
-        
-        const dbPromise = supabase
-          .from('contacts')
-          .select('*')
-          .order('created_at', { ascending: false });
+  const fetchContacts = async () => {
+    setLoading(true);
+    try {
+      if (!supabase) throw new Error("Supabase is not configured.");
+      
+      const { data, error } = await supabase
+        .from('contacts')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-        const timeoutPromise = new Promise<{ data: any, error: any }>((resolve) => 
-          setTimeout(() => resolve({ data: null, error: new Error('TIMEOUT') }), 8000)
-        );
-
-        const { data, error } = await Promise.race([dbPromise, timeoutPromise]) as { data: any, error: any };
-
-        let loadedData = [];
-        if (error) {
-           if (error.message === 'TIMEOUT') {
-              console.warn("Supabase request timed out. Loading local data.");
-           } else if (error.code === '42P01' || error.message?.includes('does not exist')) {
-              console.warn("Table contacts does not exist. Please run the SQL schema.");
-           } else {
-              console.error("Supabase error:", error);
-           }
-        } else if (data) {
-           loadedData = data;
-        }
-
-        try {
-           const localContacts = JSON.parse(localStorage.getItem('local_contacts') || '[]');
-           loadedData = [...localContacts, ...loadedData];
-        } catch(e) {}
-        setContacts(loadedData);
-      } catch (e: any) {
-        console.error("Error fetching contacts:", e);
-        let localContacts = [];
-        try {
-           localContacts = JSON.parse(localStorage.getItem('local_contacts') || '[]');
-        } catch(er) {}
-        setContacts(localContacts);
-      } finally {
-        setLoading(false);
+      if (error) {
+         console.error("Supabase error:", error);
+      } else {
+         setContacts(data || []);
       }
-    };
+    } catch (e: any) {
+      console.error("Error fetching contacts:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchContacts();
+
+    if (supabase) {
+      const channel = supabase
+        .channel('contacts_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, () => {
+          fetchContacts();
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
   }, []);
 
   return (

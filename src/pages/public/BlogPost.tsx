@@ -14,17 +14,11 @@ export default function BlogPost() {
       setLoading(true);
       try {
         if (!supabase) throw new Error("Supabase is not configured.");
-        const timeoutPromise = new Promise<{ data: any, error: any }>((_, reject) => 
-          setTimeout(() => reject(new Error("Network timeout: Supabase unreachable")), 10000)
-        );
-        const dbPromise = supabase
+        const { data, error } = await supabase
           .from('posts')
           .select('*')
           .eq('id', id)
           .single();
-
-        const result: any = await Promise.race([dbPromise, timeoutPromise]);
-        const { data, error } = result;
 
         if (error) {
            throw error;
@@ -32,15 +26,7 @@ export default function BlogPost() {
         setPost(data);
       } catch (e: any) {
         console.error("Error fetching post:", e);
-        // Fallback to local storage
-        try {
-           const localPosts = JSON.parse(localStorage.getItem('local_posts') || '[]');
-           const found = localPosts.find((p: any) => p.id === id);
-           if (found) setPost(found);
-           else setPost(null);
-        } catch(er) {
-           setPost(null);
-        }
+        setPost(null);
       } finally {
         setLoading(false);
       }

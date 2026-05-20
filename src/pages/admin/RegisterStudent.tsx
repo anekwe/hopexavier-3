@@ -47,17 +47,10 @@ export default function RegisterStudent() {
         .select('*')
         .eq('status', 'Accepted');
       
-      let loadedData = data || [];
-      const localApps = JSON.parse(localStorage.getItem('local_applications') || '[]');
-      const localAccepted = localApps.filter((a: any) => a.status === 'Accepted');
-      loadedData = [...localAccepted, ...loadedData];
-      
-      setAcceptedApplicants(loadedData);
+      if (error) throw error;
+      setAcceptedApplicants(data || []);
     } catch (e) {
-      console.error(e);
-      const localApps = JSON.parse(localStorage.getItem('local_applications') || '[]');
-      const localAccepted = localApps.filter((a: any) => a.status === 'Accepted');
-      setAcceptedApplicants(localAccepted);
+      console.error("Error fetching applications:", e);
     }
   };
 
@@ -69,13 +62,10 @@ export default function RegisterStudent() {
         .order('created_at', { ascending: false })
         .limit(5);
         
-      let loadedData = data || [];
-      const localSt = JSON.parse(localStorage.getItem('local_students') || '[]');
-      loadedData = [...localSt.slice(0, 5), ...loadedData];
-      setRecentStudents(loadedData);
+      if (error) throw error;
+      setRecentStudents(data || []);
     } catch (err) {
-      const localSt = JSON.parse(localStorage.getItem('local_students') || '[]');
-      setRecentStudents(localSt.slice(0, 5));
+      console.error("Error fetching students:", err);
     }
   };
 
@@ -146,17 +136,6 @@ export default function RegisterStudent() {
       if (data && data.length > 0) {
         const lastSeqStr = data[0].registration_number.split('/').pop();
         maxSequence = Math.max(maxSequence, parseInt(lastSeqStr, 10));
-      }
-
-      // Check local storage as well
-      const localSt = JSON.parse(localStorage.getItem('local_students') || '[]');
-      const localNumbers = localSt
-        .map((s: any) => s.registration_number)
-        .filter((r: any) => r && r.startsWith(prefix));
-      
-      for (const reg of localNumbers) {
-        const seqStr = reg.split('/').pop();
-        maxSequence = Math.max(maxSequence, parseInt(seqStr, 10));
       }
 
       const sequence = maxSequence + 1;

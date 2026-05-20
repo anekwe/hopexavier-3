@@ -18,53 +18,43 @@ export default function Students() {
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const fetchStudents = async () => {
-      setLoading(true);
-      try {
-        if (!supabase) throw new Error("Supabase is not configured.");
-        
-        const dbPromise = supabase
-          .from('registered_students')
-          .select('*')
-          .order('registration_number', { ascending: false });
+  const fetchStudents = async () => {
+    setLoading(true);
+    try {
+      if (!supabase) throw new Error("Supabase is not configured.");
+      
+      const { data, error } = await supabase
+        .from('registered_students')
+        .select('*')
+        .order('registration_number', { ascending: false });
 
-        const timeoutPromise = new Promise<{ data: any, error: any }>((resolve) => 
-          setTimeout(() => resolve({ data: null, error: new Error('TIMEOUT') }), 8000)
-        );
-
-        const { data, error } = await Promise.race([dbPromise, timeoutPromise]) as { data: any, error: any };
-        
-        let loadedData = [];
-        if (error) {
-          if (error.message === 'TIMEOUT') {
-             console.warn("Supabase request timed out. Loading local data.");
-          } else if (error.code === '42P01' || error.message?.includes('does not exist')) {
-            console.warn('registered_students table does not exist. Please create it.');
-          } else {
-             console.error("Supabase error:", error);
-          }
-        } else if (data) {
-          loadedData = data;
-        }
-
-        try {
-           const localStudents = JSON.parse(localStorage.getItem('local_students') || '[]');
-           loadedData = [...localStudents, ...loadedData];
-        } catch(e) {}
-        setStudents(loadedData);
-      } catch (e: any) {
-        console.error("Error fetching students:", e);
-        let localStudents = [];
-        try {
-           localStudents = JSON.parse(localStorage.getItem('local_students') || '[]');
-        } catch(er) {}
-        setStudents(localStudents);
-      } finally {
-        setLoading(false);
+      if (error) {
+        console.error("Supabase error:", error);
+      } else {
+        setStudents(data || []);
       }
-    };
+    } catch (e: any) {
+      console.error("Error fetching students:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchStudents();
+
+    if (supabase) {
+      const channel = supabase
+        .channel('students_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'registered_students' }, () => {
+          fetchStudents();
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
   }, []);
 
   return (

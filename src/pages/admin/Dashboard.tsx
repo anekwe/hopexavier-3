@@ -37,10 +37,6 @@ export default function Dashboard() {
 
     setResetting(true);
     try {
-      // Clear localStorage defaults used in this app
-      const keys = ['local_applications', 'local_job_applications', 'local_contacts', 'local_students', 'local_posts', 'site_content', 'appData_local', 'formData_local'];
-      keys.forEach(k => localStorage.removeItem(k));
-
       // Attempt to clear from Supabase db (deletes all rows for valid UUIDs)
       const fakeUuid = '00000000-0000-0000-0000-000000000000';
       await Promise.allSettled([

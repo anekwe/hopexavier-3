@@ -28,45 +28,20 @@ export default function Applications() {
     try {
       if (!supabase) throw new Error("Supabase is not configured.");
       
-      const dbPromise = supabase
+      const { data, error } = await supabase
         .from('applications')
         .select('*')
         .order('created_at', { ascending: false });
 
-      const timeoutPromise = new Promise<{ data: any, error: any }>((resolve) => 
-        setTimeout(() => resolve({ data: null, error: new Error("TIMEOUT") }), 8000)
-      );
-
-      const { data, error } = await Promise.race([dbPromise, timeoutPromise]) as { data: any, error: any };
-      
-      let loadedData = [];
       if (error) {
-        if (error.message === 'TIMEOUT') {
-           console.warn("Supabase request timed out. Loading local data.");
-        } else if (error.code === '42P01' || (error.message && error.message.includes("relation") && error.message.includes("does not exist"))) {
-           console.warn("Table does not exist. Please run the SQL schema.");
-        } else {
-           console.error("Supabase error:", error);
-        }
-      } else if (data) {
-        loadedData = data;
+        console.error("Supabase error:", error);
+        toast.error("Failed to fetch applications: " + error.message);
+      } else {
+        setApplications(data || []);
       }
-      
-      if (!session) {
-         try {
-           const localApps = JSON.parse(localStorage.getItem('local_applications') || '[]');
-           loadedData = [...localApps, ...loadedData];
-         } catch(e) {}
-      }
-      
-      setApplications(loadedData);
     } catch (e: any) {
       console.error("Error fetching applications:", e);
-      let localApps = [];
-      try {
-         localApps = JSON.parse(localStorage.getItem('local_applications') || '[]');
-      } catch(er) {}
-      setApplications(localApps);
+      toast.error("Failed to fetch applications");
     } finally {
       setLoading(false);
     }
@@ -74,23 +49,30 @@ export default function Applications() {
 
   useEffect(() => {
     fetchApplications();
+
+    if (supabase) {
+      const channel = supabase
+        .channel('applications_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'applications' }, () => {
+          fetchApplications();
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
   }, []);
 
   const handleReset = async () => {
     setResetting(true);
     try {
-      localStorage.removeItem('local_applications');
-      localStorage.removeItem('appData_local');
-
       const fakeUuid = '00000000-0000-0000-0000-000000000000';
       await supabase.from('applications').delete().neq('id', fakeUuid);
 
       toast.success('All testing applications wiped successfully!');
       setOpenDialog(false);
       setApplications([]);
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
     } catch (e: any) {
       toast.error('Failed to reset data: ' + e.message);
     } finally {

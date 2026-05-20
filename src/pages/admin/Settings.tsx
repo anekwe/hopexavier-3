@@ -6,9 +6,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 
 export default function Settings() {
-  const [marqueeText, setMarqueeText] = useState(() => {
-    return localStorage.getItem('local_marquee_text') || 'hopexavier first academy - GUITA COMMUNITY, BWARI AREA COUNCIL,FCT ABUJA - ADMISSION ONGOING 2026/2027';
-  });
+  const [marqueeText, setMarqueeText] = useState('hopexavier first academy - GUITA COMMUNITY, BWARI AREA COUNCIL,FCT ABUJA - ADMISSION ONGOING 2026/2027');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -36,6 +34,19 @@ export default function Settings() {
 
   useEffect(() => {
     fetchSettings();
+
+    if (supabase) {
+      const channel = supabase
+        .channel('site_settings_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'site_settings' }, () => {
+          fetchSettings();
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
   }, []);
 
   const handleSave = async (e: any) => {

@@ -8,52 +8,41 @@ export default function Blog() {
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchPosts = async () => {
-      setLoading(true);
-      try {
-        if (!supabase) throw new Error("Supabase is not configured.");
-        const timeoutPromise = new Promise<{ data: any, error: any }>((_, reject) => 
-          setTimeout(() => reject(new Error("Network timeout: Supabase unreachable")), 10000)
-        );
-        const dbPromise = supabase
-          .from('posts')
-          .select('*')
-          .order('created_at', { ascending: false });
+  const fetchPosts = async () => {
+    setLoading(true);
+    try {
+      if (!supabase) throw new Error("Supabase is not configured.");
+      const { data, error } = await supabase
+        .from('posts')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-        const result: any = await Promise.race([dbPromise, timeoutPromise]);
-        const { data, error } = result;
-
-        if (error) {
-           if (error.code === '42P01' || error.message?.includes('does not exist')) {
-              console.warn("Table posts does not exist. Please run the SQL schema.");
-              let localPosts = [];
-              try { localPosts = JSON.parse(localStorage.getItem('local_posts') || '[]'); } catch(e) {}
-              setPosts(localPosts);
-              return;
-           }
-           throw error;
-        }
-        let loadedData = data || [];
-        try {
-           const localPosts = JSON.parse(localStorage.getItem('local_posts') || '[]');
-           const localIds = new Set(localPosts.map((p: any) => p.id));
-           loadedData = loadedData.filter((p: any) => !localIds.has(p.id));
-           loadedData = [...localPosts, ...loadedData];
-        } catch(e) {}
-        setPosts(loadedData);
-      } catch (e: any) {
-        console.error("Error fetching posts:", e);
-        let localPosts = [];
-        try {
-           localPosts = JSON.parse(localStorage.getItem('local_posts') || '[]');
-        } catch(er) {}
-        setPosts(localPosts);
-      } finally {
-        setLoading(false);
+      if (error) {
+         throw error;
       }
-    };
+      setPosts(data || []);
+    } catch (e: any) {
+      console.error("Error fetching posts:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchPosts();
+
+    if (supabase) {
+      const channel = supabase
+        .channel('public_posts_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => {
+          fetchPosts();
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
   }, []);
 
   return (

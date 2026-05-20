@@ -20,14 +20,9 @@ export default function Home() {
         
         if (!error && data) {
           setLatestPosts(data);
-        } else {
-          // Fallback to local
-          const local = JSON.parse(localStorage.getItem('local_posts') || '[]');
-          setLatestPosts(local.slice(0, 3));
         }
       } catch (e) {
-        const local = JSON.parse(localStorage.getItem('local_posts') || '[]');
-        setLatestPosts(local.slice(0, 3));
+        console.error("Error fetching latest posts:", e);
       }
     };
     fetchLatestPosts();

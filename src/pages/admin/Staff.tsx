@@ -10,54 +10,43 @@ export default function AdminStaff() {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const fetchStaff = async () => {
-      setLoading(true);
-      try {
-        if (!supabase) throw new Error("Supabase is not configured.");
-        
-        const dbPromise = supabase
-          .from('staff_documentation')
-          .select('*')
-          .order('staff_number', { ascending: false });
+  const fetchStaff = async () => {
+    setLoading(true);
+    try {
+      if (!supabase) throw new Error("Supabase is not configured.");
+      
+      const { data, error } = await supabase
+        .from('staff_documentation')
+        .select('*')
+        .order('staff_number', { ascending: false });
 
-        const timeoutPromise = new Promise<{ data: any, error: any }>((resolve) => 
-          setTimeout(() => resolve({ data: null, error: new Error('TIMEOUT') }), 8000)
-        );
-
-        const { data, error } = await Promise.race([dbPromise, timeoutPromise]) as { data: any, error: any };
-        
-        let loadedData = [];
-        if (error) {
-          if (error.message === 'TIMEOUT') {
-             console.warn("Supabase request timed out. Loading local data.");
-          } else if (error.code === '42P01' || error.message?.includes('does not exist') || error.message?.includes('schema cache') || error.code?.startsWith('PGRST')) {
-            console.warn('staff_documentation table does not exist or schema issue.');
-          } else {
-             console.error("Supabase error:", error);
-          }
-        } else if (data) {
-          loadedData = data;
-        }
-
-        try {
-           const localStaff = JSON.parse(localStorage.getItem('local_staff_docs') || '[]');
-           const uniqueLocal = localStaff.filter((la: any) => !loadedData.find((d: any) => d.staff_number === la.staff_number));
-           loadedData = [...uniqueLocal, ...loadedData];
-        } catch(e) {}
-        setStaffList(loadedData);
-      } catch (e: any) {
-        console.error("Error fetching staff:", e);
-        let localStaff = [];
-        try {
-           localStaff = JSON.parse(localStorage.getItem('local_staff_docs') || '[]');
-        } catch(er) {}
-        setStaffList(localStaff);
-      } finally {
-        setLoading(false);
+      if (error) {
+         console.error("Supabase error:", error);
+      } else {
+         setStaffList(data || []);
       }
-    };
+    } catch (e: any) {
+      console.error("Error fetching staff:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchStaff();
+
+    if (supabase) {
+      const channel = supabase
+        .channel('staff_documentation_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'staff_documentation' }, () => {
+          fetchStaff();
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
   }, []);
 
   return (

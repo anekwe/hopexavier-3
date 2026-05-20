@@ -15,7 +15,7 @@ export default function Login() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { user, mockLogin } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   if (user) return <Navigate to="/admin/dashboard" replace />;
@@ -25,69 +25,12 @@ export default function Login() {
     setLoading(true);
 
     try {
-      if (email === 'hopexavier@gmail.com' && password === 'prince_1981') {
-        if (isSupabaseConfigured) {
-          // Automatically ensure the admin is really in Supabase
-          const timeoutPromise = new Promise<{ error: any }>((resolve) => setTimeout(() => resolve({ error: new Error("Network timeout: Supabase might be unreachable.") }), 10000));
-          const authPromise = supabase.auth.signInWithPassword({ email, password });
-          let { error } = await Promise.race([authPromise, timeoutPromise]);
-          
-          if (error && error.message.includes('Invalid login credentials')) {
-             await Promise.race([supabase.auth.signUp({ email, password }), new Promise((r) => setTimeout(r, 10000))]);
-             const retryPromise = supabase.auth.signInWithPassword({ email, password });
-             let retryResult = await Promise.race([retryPromise, timeoutPromise]);
-             if (retryResult?.error) error = retryResult.error;
-          }
-          if (error && error.message.toLowerCase().includes('email not confirmed')) {
-             error = null;
-          } else if (error && error.message.toLowerCase().includes('network timeout')) {
-             console.warn("Supabase unreachable, logging in locally...");
-             error = null;
-          } else if (error) {
-             throw error;
-          }
-        }
-        mockLogin(email);
-        toast.success('Login successful. Redirecting...');
-        // Let the `<Navigate>` component at the top handle the redirect after Context updates.
-        return;
-      }
-
       if (isSupabaseConfigured) {
-        const timeoutPromise = new Promise<{ error: any }>((resolve) => setTimeout(() => resolve({ error: new Error("Network timeout: Supabase might be unreachable.") }), 10000));
-        const authPromise = supabase.auth.signInWithPassword({ email, password });
-        const { error } = await Promise.race([authPromise, timeoutPromise]);
-        
-        if (error) {
-           if (error.message.toLowerCase().includes('email not confirmed') || error.message.toLowerCase().includes('network timeout')) {
-              const savedPass = localStorage.getItem(`mock_user_${email}`);
-              if (savedPass && savedPass === password) {
-                 mockLogin(email);
-                 toast.success('Login successful. Redirecting...');
-                 return;
-              } else if (!savedPass) {
-                 throw new Error(error.message.toLowerCase().includes('timeout') ? 'Network timeout: Supabase unreachable, and no local admin found.' : 'Email not confirmed by Supabase, and no local admin registration found.');
-              } else {
-                 throw new Error('Invalid credentials');
-              }
-           }
-           throw error; // Let the actual Supabase error bubble up to the UI toast
-        } else {
-           toast.success('Login successful. Redirecting...');
-           // We do not call navigate() here to prevent a race condition with AuthContext.
-           // The onAuthStateChange listener will soon update the `user` context,
-           // triggering the <Navigate> component at the top of this file.
-        }
-      } else {
-        const savedPass = localStorage.getItem(`mock_user_${email}`);
-        if (!savedPass) {
-          throw new Error('Access denied. Please register as an admin.');
-        } else if (savedPass !== password) {
-          throw new Error('Invalid credentials');
-        }
-        mockLogin(email);
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
         toast.success('Login successful. Redirecting...');
-        // Let the `<Navigate>` component handle the redirect.
+      } else {
+        throw new Error("Supabase is not configured yet.");
       }
     } catch (error: any) {
       toast.error(error.message || 'Login failed');
@@ -122,17 +65,15 @@ export default function Login() {
     try {
       if (isSupabaseConfigured) {
         const { error } = await supabase.auth.signUp({ email, password });
-        if (error && !error.message.includes('already registered')) {
+        if (error) {
             throw error;
         }
+        
+        toast.success('Registration successful. You can now log in.');
+        setIsRegistering(false);
+      } else {
+        throw new Error("Supabase is not configured yet.");
       }
-      
-      // Store locally as a fallback or for current session
-      localStorage.setItem(`mock_user_${email}`, password);
-      
-      // Auto login after successful registration (access is grant)
-      mockLogin(email);
-      toast.success('Registration successful. Access granted.');
     } catch (error: any) {
       toast.error(error.message || 'Registration failed');
     } finally {

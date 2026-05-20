@@ -175,8 +175,13 @@ export default function RegisterStudent() {
       if (!str) return false;
       const lower = str.toLowerCase().trim();
       if (lower.length < 2) return true;
-      if (lower === 'test' || lower === 'dummy' || lower === 'none' || lower === 'nil') return true;
+      
+      const words = lower.split(/\s+/);
+      const invalidWords = ['test', 'dummy', 'none', 'nil', 'demo', 'fake'];
+      if (words.some(word => invalidWords.includes(word))) return true;
+      
       if (/^(.)\1+$/.test(lower)) return true; // e.g., "xx", "yyy"
+      if (!/[a-z]/i.test(lower)) return true;
       return false;
     };
 

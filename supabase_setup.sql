@@ -45,13 +45,13 @@ BEGIN
     CREATE POLICY "Allow public read access on registered_students" ON public.registered_students FOR SELECT USING (true);
     
     DROP POLICY IF EXISTS "Allow authenticated insert access on registered_students" ON public.registered_students;
-    CREATE POLICY "Allow authenticated insert access on registered_students" ON public.registered_students FOR INSERT WITH CHECK (true);
+    CREATE POLICY "Allow authenticated insert access on registered_students" ON public.registered_students FOR INSERT TO authenticated WITH CHECK (true);
     
     DROP POLICY IF EXISTS "Allow authenticated update access on registered_students" ON public.registered_students;
-    CREATE POLICY "Allow authenticated update access on registered_students" ON public.registered_students FOR UPDATE USING (true);
+    CREATE POLICY "Allow authenticated update access on registered_students" ON public.registered_students FOR UPDATE TO authenticated USING (true);
     
     DROP POLICY IF EXISTS "Allow authenticated delete access on registered_students" ON public.registered_students;
-    CREATE POLICY "Allow authenticated delete access on registered_students" ON public.registered_students FOR DELETE USING (true);
+    CREATE POLICY "Allow authenticated delete access on registered_students" ON public.registered_students FOR DELETE TO authenticated USING (true);
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
@@ -164,16 +164,16 @@ ALTER TABLE public.applications ENABLE ROW LEVEL SECURITY;
 DO $$
 BEGIN
     DROP POLICY IF EXISTS "Allow public insert access on applications" ON public.applications;
-    CREATE POLICY "Allow public insert access on applications" ON public.applications FOR INSERT WITH CHECK (true);
+    CREATE POLICY "Allow public insert access on applications" ON public.applications FOR INSERT TO authenticated WITH CHECK (true);
     
     DROP POLICY IF EXISTS "Allow public read access on applications" ON public.applications;
     CREATE POLICY "Allow public read access on applications" ON public.applications FOR SELECT USING (true);
     
     DROP POLICY IF EXISTS "Allow authenticated update access on applications" ON public.applications;
-    CREATE POLICY "Allow authenticated update access on applications" ON public.applications FOR UPDATE USING (true);
+    CREATE POLICY "Allow authenticated update access on applications" ON public.applications FOR UPDATE TO authenticated USING (true);
     
     DROP POLICY IF EXISTS "Allow authenticated delete access on applications" ON public.applications;
-    CREATE POLICY "Allow authenticated delete access on applications" ON public.applications FOR DELETE USING (true);
+    CREATE POLICY "Allow authenticated delete access on applications" ON public.applications FOR DELETE TO authenticated USING (true);
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
@@ -193,16 +193,16 @@ ALTER TABLE public.contacts ENABLE ROW LEVEL SECURITY;
 DO $$
 BEGIN
     DROP POLICY IF EXISTS "Allow public insert access on contacts" ON public.contacts;
-    CREATE POLICY "Allow public insert access on contacts" ON public.contacts FOR INSERT WITH CHECK (true);
+    CREATE POLICY "Allow public insert access on contacts" ON public.contacts FOR INSERT TO authenticated WITH CHECK (true);
     
     DROP POLICY IF EXISTS "Allow public read access on contacts" ON public.contacts;
     CREATE POLICY "Allow public read access on contacts" ON public.contacts FOR SELECT USING (true);
     
     DROP POLICY IF EXISTS "Allow authenticated update access on contacts" ON public.contacts;
-    CREATE POLICY "Allow authenticated update access on contacts" ON public.contacts FOR UPDATE USING (true);
+    CREATE POLICY "Allow authenticated update access on contacts" ON public.contacts FOR UPDATE TO authenticated USING (true);
     
     DROP POLICY IF EXISTS "Allow authenticated delete access on contacts" ON public.contacts;
-    CREATE POLICY "Allow authenticated delete access on contacts" ON public.contacts FOR DELETE USING (true);
+    CREATE POLICY "Allow authenticated delete access on contacts" ON public.contacts FOR DELETE TO authenticated USING (true);
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
@@ -250,7 +250,7 @@ ALTER TABLE public.job_applications ENABLE ROW LEVEL SECURITY;
 DO $$
 BEGIN
     DROP POLICY IF EXISTS "Allow public insert access on job_applications" ON public.job_applications;
-    CREATE POLICY "Allow public insert access on job_applications" ON public.job_applications FOR INSERT WITH CHECK (true);
+    CREATE POLICY "Allow public insert access on job_applications" ON public.job_applications FOR INSERT TO authenticated WITH CHECK (true);
     
     DROP POLICY IF EXISTS "Allow public read access on job_applications" ON public.job_applications;
     CREATE POLICY "Allow public read access on job_applications" ON public.job_applications FOR SELECT USING (true);
@@ -284,7 +284,7 @@ ALTER TABLE public.staff_documentation ENABLE ROW LEVEL SECURITY;
 DO $$
 BEGIN
     DROP POLICY IF EXISTS "Allow public insert access on staff_documentation" ON public.staff_documentation;
-    CREATE POLICY "Allow public insert access on staff_documentation" ON public.staff_documentation FOR INSERT WITH CHECK (true);
+    CREATE POLICY "Allow public insert access on staff_documentation" ON public.staff_documentation FOR INSERT TO authenticated WITH CHECK (true);
     
     DROP POLICY IF EXISTS "Allow public read access on staff_documentation" ON public.staff_documentation;
     CREATE POLICY "Allow public read access on staff_documentation" ON public.staff_documentation FOR SELECT USING (true);

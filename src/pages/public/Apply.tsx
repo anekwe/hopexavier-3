@@ -62,6 +62,8 @@ export default function Apply() {
     setLoading(true);
     const payload = {
       ...formData,
+      parent_full_name: formData.parent_name,
+      student_full_name: formData.student_fname + ' ' + formData.student_surname,
       status: 'Pending'
     };
 
@@ -73,7 +75,13 @@ export default function Apply() {
       toast.success('Application submitted successfully!');
     } catch (error: any) {
       console.error("Supabase insert error:", error);
-      toast.error(`Failed to submit application: ${error?.message || 'Database error occurred'}`);
+      if (error?.code === '42P01' || error?.code === 'PGRST205' || (error?.message && error?.message?.includes("does not exist"))) {
+        toast.error('Central database table missing! Admin must run the setup script.', { duration: 10000 });
+      } else if (error?.code === '42501' || error?.message?.includes("row-level security") || error?.message?.includes("policy")) {
+        toast.error('Permission denied! Admin must update RLS policies.', { duration: 10000 });
+      } else {
+        toast.error(`Error saving centrally: ${error?.message || 'Database error occurred'}`);
+      }
     } finally {
       setLoading(false);
     }

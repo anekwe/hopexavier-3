@@ -55,7 +55,13 @@ export default function Settings() {
       toast.success('Marquee text updated successfully!');
     } catch (error: any) {
       console.error('Save Settings Error:', error);
-      toast.error('Failed to save settings to database.');
+      if (error?.code === '42P01' || error?.code === 'PGRST205' || (error?.message && error?.message?.includes("does not exist"))) {
+        toast.error('Table missing! Please run the supabase_setup.sql script in your Supabase SQL Editor.', { duration: 10000 });
+      } else if (error?.code === '42501' || error?.message?.includes("row-level security")) {
+        toast.error('Permission denied! Please update your RLS policies in Supabase using the latest setup script.', { duration: 10000 });
+      } else {
+        toast.error(`Failed to save settings centrally: ${error?.message || 'Unknown error'}`);
+      }
     } finally {
       setIsSubmitting(false);
     }

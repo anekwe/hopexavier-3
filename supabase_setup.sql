@@ -223,7 +223,8 @@ BEGIN
     CREATE POLICY "Allow public read access on site_settings" ON public.site_settings FOR SELECT USING (true);
     
     DROP POLICY IF EXISTS "Allow authenticated all access on site_settings" ON public.site_settings;
-    CREATE POLICY "Allow authenticated all access on site_settings" ON public.site_settings FOR ALL USING (true);
+    -- Changed to public so the mock login system can still update settings centrally without real Supabase session
+    CREATE POLICY "Allow authenticated all access on site_settings" ON public.site_settings FOR ALL USING (true) WITH CHECK (true);
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 

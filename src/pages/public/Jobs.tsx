@@ -131,7 +131,13 @@ export default function Jobs() {
       navigate('/jobs/status');
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || 'An error occurred while submitting application');
+      if (err?.code === '42P01' || err?.code === 'PGRST205' || (err?.message && err?.message?.includes("does not exist"))) {
+        toast.error('Central database table missing! Admin must run the setup script.', { duration: 10000 });
+      } else if (err?.code === '42501' || err?.message?.includes("row-level security")) {
+        toast.error('Permission denied! Admin must update RLS policies.', { duration: 10000 });
+      } else {
+        toast.error(`Error saving centrally: ${err.message || 'Unknown database error'}`);
+      }
     } finally {
       setLoading(false);
     }

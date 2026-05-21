@@ -27,7 +27,12 @@ export default function Login() {
     try {
       if (isSupabaseConfigured) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        if (error) {
+          if (error.message.toLowerCase().includes('email not confirmed')) {
+            throw new Error('Please check your email inbox to confirm your account before logging in.');
+          }
+          throw error;
+        }
         toast.success('Login successful. Redirecting...');
       } else {
         throw new Error("Supabase is not configured yet.");
@@ -69,7 +74,7 @@ export default function Login() {
             throw error;
         }
         
-        toast.success('Registration successful. You can now log in.');
+        toast.success('Registration successful. Please check your email to confirm your account before logging in.', { duration: 6000 });
         setIsRegistering(false);
       } else {
         throw new Error("Supabase is not configured yet.");

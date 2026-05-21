@@ -395,3 +395,18 @@ BEGIN
         END;
     END LOOP;
 END $$;
+
+-- 11. Optional: Auto-confirm users (useful for development)
+-- Run this if you are getting "Email not confirmed" errors and don't have SMTP setup
+CREATE OR REPLACE FUNCTION public.auto_confirm_user()
+RETURNS trigger AS $$
+BEGIN
+  NEW.email_confirmed_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  BEFORE INSERT ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.auto_confirm_user();

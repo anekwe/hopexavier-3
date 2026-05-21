@@ -68,8 +68,8 @@ export default function Apply() {
     setLoading(true);
     const payload = {
       ...formData,
-      parent_full_name: formData.parent_name,
-      student_full_name: formData.student_fname + ' ' + formData.student_surname,
+      parent_full_name: formData.parent_name || 'N/A',
+      student_full_name: (formData.student_fname + ' ' + formData.student_surname).trim() || 'N/A',
       status: 'Pending'
     };
 

@@ -3,19 +3,24 @@ import { supabase } from '@/lib/supabase';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
-import { Eye, User } from 'lucide-react';
+import { Eye, User, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
+  DialogDescription,
 } from '@/components/ui/dialog';
 
 export default function Students() {
   const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [studentToDelete, setStudentToDelete] = useState<any>(null);
   const navigate = useNavigate();
 
   const fetchStudents = async () => {
@@ -30,6 +35,7 @@ export default function Students() {
 
       if (error) {
         console.error("Supabase error:", error);
+        toast.error("Failed to load students.");
       } else {
         setStudents(data || []);
       }
@@ -56,6 +62,28 @@ export default function Students() {
       };
     }
   }, []);
+
+  const handleDelete = async () => {
+    if (!studentToDelete) return;
+    setDeletingId(studentToDelete.id);
+    try {
+      const { error } = await supabase
+        .from('registered_students')
+        .delete()
+        .eq('id', studentToDelete.id);
+        
+      if (error) throw error;
+      
+      setStudents(prev => prev.filter(s => s.id !== studentToDelete.id));
+      toast.success("Student deleted successfully.");
+      setStudentToDelete(null);
+    } catch (e: any) {
+      console.error("Error deleting student:", e);
+      toast.error(`Error deleting student: ${e.message}`);
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-8">
@@ -95,87 +123,119 @@ export default function Students() {
                   <TableCell className="capitalize">{stu.gender}</TableCell>
                   <TableCell>{stu.email_address || 'N/A'}</TableCell>
                   <TableCell className="text-right">
-                    <Dialog>
-                      <DialogTrigger 
-                        render={
+                    <div className="flex justify-end gap-2">
+                      <Dialog>
+                        <DialogTrigger 
+                          render={
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="hover:bg-brand-green/10 hover:text-brand-green"
+                              onClick={() => setSelectedStudent(stu)}
+                            />
+                          }
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          View
+                        </DialogTrigger>
+                        <DialogContent className="max-w-xl">
+                          <DialogHeader>
+                            <DialogTitle>Student Details</DialogTitle>
+                          </DialogHeader>
+                          {selectedStudent && (
+                            <div className="mt-6 space-y-6">
+                              <div className="flex flex-col items-center sm:flex-row sm:items-start gap-6 border-b border-border pb-6">
+                                <div className="h-32 w-32 rounded-xl overflow-hidden bg-muted flex items-center justify-center border-2 border-border shadow-sm flex-shrink-0">
+                                  {selectedStudent.passport_photo_url ? (
+                                    <img 
+                                      src={selectedStudent.passport_photo_url} 
+                                      alt={`${selectedStudent.surname} passport`} 
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : (
+                                    <User className="h-12 w-12 text-muted-foreground/50" />
+                                  )}
+                                </div>
+                                <div className="space-y-1 text-center sm:text-left">
+                                  <h3 className="text-2xl font-bold">{selectedStudent.surname} {selectedStudent.other_names}</h3>
+                                  <div className="text-brand-green font-medium font-mono text-lg">{selectedStudent.registration_number}</div>
+                                  <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-brand-green/10 text-brand-green mt-2">
+                                    {selectedStudent.status || 'Active'}
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              <div className="grid grid-cols-2 gap-y-4 gap-x-8 text-sm">
+                                <div>
+                                  <div className="text-muted-foreground mb-1">Class Enrolled</div>
+                                  <div className="font-medium">{selectedStudent.class_applied}</div>
+                                </div>
+                                <div>
+                                  <div className="text-muted-foreground mb-1">Gender</div>
+                                  <div className="font-medium capitalize">{selectedStudent.gender}</div>
+                                </div>
+                                <div>
+                                  <div className="text-muted-foreground mb-1">Date of Birth</div>
+                                  <div className="font-medium">{selectedStudent.date_of_birth || 'N/A'}</div>
+                                </div>
+                                <div>
+                                  <div className="text-muted-foreground mb-1">Student Email</div>
+                                  <div className="font-medium">{selectedStudent.email_address || 'N/A'}</div>
+                                </div>
+                                <div className="col-span-2">
+                                  <div className="text-muted-foreground mb-1">Home Address</div>
+                                  <div className="font-medium">{selectedStudent.house_address || 'N/A'}</div>
+                                </div>
+                              </div>
+                              
+                              <div className="bg-muted p-4 rounded-lg space-y-4">
+                                <h4 className="font-semibold border-b border-border/50 pb-2">Parent/Guardian Information</h4>
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                  <div>
+                                    <div className="text-muted-foreground mb-1">Name</div>
+                                    <div className="font-medium">{selectedStudent.parents_name || 'N/A'}</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-muted-foreground mb-1">Phone Number</div>
+                                    <div className="font-medium">{selectedStudent.parents_phone || 'N/A'}</div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </DialogContent>
+                      </Dialog>
+
+                      <Dialog open={studentToDelete?.id === stu.id} onOpenChange={(open) => { if (!open) setStudentToDelete(null); }}>
+                        <DialogTrigger render={
                           <Button 
                             variant="ghost" 
                             size="sm" 
-                            className="hover:bg-brand-green/10 hover:text-brand-green"
-                            onClick={() => setSelectedStudent(stu)}
+                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            onClick={() => setStudentToDelete(stu)}
                           />
-                        }
-                      >
-                        <Eye className="h-4 w-4 mr-2" />
-                        View
-                      </DialogTrigger>
-                      <DialogContent className="max-w-xl">
-                        <DialogHeader>
-                          <DialogTitle>Student Details</DialogTitle>
-                        </DialogHeader>
-                        {selectedStudent && (
-                          <div className="mt-6 space-y-6">
-                            <div className="flex flex-col items-center sm:flex-row sm:items-start gap-6 border-b border-border pb-6">
-                              <div className="h-32 w-32 rounded-xl overflow-hidden bg-muted flex items-center justify-center border-2 border-border shadow-sm flex-shrink-0">
-                                {selectedStudent.passport_photo_url ? (
-                                  <img 
-                                    src={selectedStudent.passport_photo_url} 
-                                    alt={`${selectedStudent.surname} passport`} 
-                                    className="w-full h-full object-cover"
-                                  />
-                                ) : (
-                                  <User className="h-12 w-12 text-muted-foreground/50" />
-                                )}
-                              </div>
-                              <div className="space-y-1 text-center sm:text-left">
-                                <h3 className="text-2xl font-bold">{selectedStudent.surname} {selectedStudent.other_names}</h3>
-                                <div className="text-brand-green font-medium font-mono text-lg">{selectedStudent.registration_number}</div>
-                                <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-brand-green/10 text-brand-green mt-2">
-                                  {selectedStudent.status || 'Active'}
-                                </div>
-                              </div>
-                            </div>
-                            
-                            <div className="grid grid-cols-2 gap-y-4 gap-x-8 text-sm">
-                              <div>
-                                <div className="text-muted-foreground mb-1">Class Enrolled</div>
-                                <div className="font-medium">{selectedStudent.class_applied}</div>
-                              </div>
-                              <div>
-                                <div className="text-muted-foreground mb-1">Gender</div>
-                                <div className="font-medium capitalize">{selectedStudent.gender}</div>
-                              </div>
-                              <div>
-                                <div className="text-muted-foreground mb-1">Date of Birth</div>
-                                <div className="font-medium">{selectedStudent.date_of_birth || 'N/A'}</div>
-                              </div>
-                              <div>
-                                <div className="text-muted-foreground mb-1">Student Email</div>
-                                <div className="font-medium">{selectedStudent.email_address || 'N/A'}</div>
-                              </div>
-                              <div className="col-span-2">
-                                <div className="text-muted-foreground mb-1">Home Address</div>
-                                <div className="font-medium">{selectedStudent.house_address || 'N/A'}</div>
-                              </div>
-                            </div>
-                            
-                            <div className="bg-muted p-4 rounded-lg space-y-4">
-                              <h4 className="font-semibold border-b border-border/50 pb-2">Parent/Guardian Information</h4>
-                              <div className="grid grid-cols-2 gap-4 text-sm">
-                                <div>
-                                  <div className="text-muted-foreground mb-1">Name</div>
-                                  <div className="font-medium">{selectedStudent.parents_name || 'N/A'}</div>
-                                </div>
-                                <div>
-                                  <div className="text-muted-foreground mb-1">Phone Number</div>
-                                  <div className="font-medium">{selectedStudent.parents_phone || 'N/A'}</div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </DialogContent>
-                    </Dialog>
+                        }>
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          Delete
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Confirm Deletion</DialogTitle>
+                            <DialogDescription>
+                              Are you sure you want to delete the student <strong>{stu.surname} {stu.other_names}</strong>? This action cannot be undone.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <DialogFooter>
+                            <Button variant="outline" onClick={() => setStudentToDelete(null)} disabled={deletingId === stu.id}>
+                              Cancel
+                            </Button>
+                            <Button variant="destructive" onClick={handleDelete} disabled={deletingId === stu.id}>
+                              {deletingId === stu.id ? 'Deleting...' : 'Delete'}
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))

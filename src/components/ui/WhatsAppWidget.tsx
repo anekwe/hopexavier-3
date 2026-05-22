@@ -28,23 +28,8 @@ export default function WhatsAppWidget() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Spam Protection / Dummy Data Validation
-    const isDummyData = (str: string) => {
-      if (!str) return false;
-      const lower = str.toLowerCase().trim();
-      if (lower.length < 2) return true;
-      
-      const words = lower.split(/\s+/);
-      const invalidWords = ['test', 'dummy', 'none', 'nil', 'demo', 'fake'];
-      if (words.some(word => invalidWords.includes(word))) return true;
-      
-      if (/^(.)\1+$/.test(lower)) return true; // e.g., "xx", "yyy"
-      if (!/[a-z]/i.test(lower)) return true;
-      return false;
-    };
-
-    if (isDummyData(formData.name)) {
-      toast.error('Please enter a valid name.');
+    if (!formData.name || formData.name.trim().length === 0) {
+      toast.error('Please enter a name.');
       return;
     }
 

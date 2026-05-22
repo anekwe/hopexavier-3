@@ -52,26 +52,6 @@ export default function Jobs() {
       return;
     }
 
-    // Spam Protection / Dummy Data Validation
-    const isDummyData = (str: string) => {
-      if (!str) return false;
-      const lower = str.toLowerCase().trim();
-      if (lower.length < 2) return true;
-      
-      const words = lower.split(/\s+/);
-      const invalidWords = ['test', 'dummy', 'none', 'nil', 'demo', 'fake'];
-      if (words.some(word => invalidWords.includes(word))) return true;
-      
-      if (/^(.)\1+$/.test(lower)) return true; // e.g., "xx", "yyy"
-      if (!/[a-z]/i.test(lower)) return true;
-      return false;
-    };
-
-    if (isDummyData(formData.surname) || isDummyData(formData.other_names)) {
-      toast.error('Please enter a valid name.');
-      return;
-    }
-
     if (formData.phone_number.length < 5) {
       toast.error('Please enter a valid phone number.');
       return;

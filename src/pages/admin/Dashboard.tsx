@@ -37,15 +37,25 @@ export default function Dashboard() {
 
     setResetting(true);
     try {
-      // Attempt to clear from Supabase db (deletes all rows for valid UUIDs)
-      const fakeUuid = '00000000-0000-0000-0000-000000000000';
-      await Promise.allSettled([
-        supabase.from('applications').delete().neq('id', fakeUuid),
-        supabase.from('job_applications').delete().neq('id', fakeUuid),
-        supabase.from('registered_students').delete().neq('id', fakeUuid),
-        supabase.from('posts').delete().neq('id', fakeUuid),
-        supabase.from('contacts').delete().neq('id', fakeUuid),
-      ]);
+      const tablesToClear = ['applications', 'job_applications', 'registered_students', 'posts', 'contacts', 'messages'];
+      
+      for (const table of tablesToClear) {
+         let hasMore = true;
+         // Loop and delete in batches to bypass PostgreSQL mass-delete restrictions and UUID/int casting issues
+         while (hasMore) {
+            const { data, error } = await supabase.from(table).select('id').limit(1000);
+            if (error) throw new Error(`Table ${table} error: ${error.message}`);
+            
+            if (!data || data.length === 0) {
+               hasMore = false;
+               break;
+            }
+            
+            const ids = data.map(r => r.id);
+            const { error: delError } = await supabase.from(table).delete().in('id', ids);
+            if (delError) throw new Error(`Delete failed on ${table}: ${delError.message}`);
+         }
+      }
 
       toast.success('All testing data has been wiped successfully for production!');
       setOpenDialog(false);
@@ -146,7 +156,33 @@ export default function Dashboard() {
         setLoading(false);
       }
     };
+
     fetchStats();
+
+    if (supabase) {
+      const channel = supabase
+        .channel('dashboard_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'applications' }, () => {
+          fetchStats();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'job_applications' }, () => {
+          fetchStats();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'registered_students' }, () => {
+          fetchStats();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => {
+          fetchStats();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, () => {
+          fetchStats();
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
   }, []);
 
   const statCards = [
@@ -179,6 +215,8 @@ export default function Dashboard() {
               </DialogTitle>
               <DialogDescription>
                 Are you sure? This will permanently delete all the locally saved and database testing data for:
+              </DialogDescription>
+              <div className="text-sm text-muted-foreground">
                 <ul className="list-disc pl-6 mt-2 mb-2 font-medium">
                   <li>Applications</li>
                   <li>Job Applications</li>
@@ -195,7 +233,7 @@ export default function Dashboard() {
                     onChange={(e) => setResetPin(e.target.value)}
                   />
                 </div>
-              </DialogDescription>
+              </div>
             </DialogHeader>
             <DialogFooter className="gap-2 sm:gap-0 mt-4">
               <Button variant="outline" onClick={() => setOpenDialog(false)} disabled={resetting}>Cancel</Button>

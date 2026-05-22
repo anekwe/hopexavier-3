@@ -13,7 +13,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function run() {
   const { data, error } = await supabase.from('applications').select('*');
-  console.log("Returned sample:", data?.[0]);
+  console.log("Count:", data?.length, "Error:", error);
 }
 
 run();

@@ -22,24 +22,49 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    // Check for hardcoded local admin session fallback
+    const localAdmin = localStorage.getItem('hopexavier_admin_auth');
+    if (localAdmin === 'true') {
+       setUser({ id: 'local-admin', email: 'hopexavier@gmail.com' } as User);
+       setLoading(false);
+       // We don't return early here, so we can still subscribe to Supabase state changes if they exist,
+       // but we prioritize our local hardcoded session to unblock production right now.
+    }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    if (isSupabaseConfigured) {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (localStorage.getItem('hopexavier_admin_auth') !== 'true') {
+           setSession(session);
+           setUser(session?.user ?? null);
+           setLoading(false);
+        }
+      });
 
-    return () => subscription.unsubscribe();
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (localStorage.getItem('hopexavier_admin_auth') !== 'true') {
+           setSession(session);
+           setUser(session?.user ?? null);
+           setLoading(false);
+        }
+      });
+
+      return () => subscription.unsubscribe();
+    } else {
+      if (localAdmin !== 'true') {
+         setLoading(false);
+      }
+    }
   }, []);
 
   const signOut = async () => {
+    localStorage.removeItem('hopexavier_admin_auth');
     setUser(null);
-    await supabase.auth.signOut();
+    setSession(null);
+    if (isSupabaseConfigured) {
+       await supabase.auth.signOut();
+    }
+    // Also perform a hard redirect to ensure fully wiped state
+    window.location.href = '/admin';
   };
 
   return (

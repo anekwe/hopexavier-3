@@ -17,6 +17,7 @@ export default function Apply() {
     dob: '',
     gender: '',
     class_applied: '',
+    student_type: '',
     parent_name: '',
     parent_phone: '',
     parent_email: '',
@@ -35,41 +36,30 @@ export default function Apply() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Spam Protection / Dummy Data Validation
-    const isDummyData = (str: string) => {
-      if (!str) return false;
-      const lower = str.toLowerCase().trim();
-      if (lower.length < 2) return true;
-      
-      const words = lower.split(/\s+/);
-      const invalidWords = ['test', 'dummy', 'none', 'nil', 'demo', 'fake'];
-      if (words.some(word => invalidWords.includes(word))) return true;
-      
-      if (/^(.)\1+$/.test(lower)) return true; // e.g., "xx", "yyy"
-      if (!/[a-z]/i.test(lower)) return true;
-      return false;
-    };
-
-    if (isDummyData(formData.student_fname) || isDummyData(formData.student_surname)) {
-      toast.error('Please enter a valid student name.');
-      return;
-    }
-
-    if (isDummyData(formData.parent_name)) {
-      toast.error('Please enter a valid parent name.');
-      return;
-    }
-
-    if (formData.parent_phone.length < 5) {
-      toast.error('Please enter a valid phone number.');
+    if (!formData.student_fname || !formData.student_surname || !formData.parent_name || !formData.parent_phone || !formData.student_type) {
+      toast.error('Please fill in all required fields, including Student Type.');
       return;
     }
 
     setLoading(true);
+    
+    // Construct real production payload matching Supabase exactly, ensuring no nulls for required fields
     const payload = {
-      ...formData,
-      parent_full_name: formData.parent_name || 'N/A',
-      student_full_name: (formData.student_fname + ' ' + formData.student_surname).trim() || 'N/A',
+      student_fname: formData.student_fname.trim(),
+      student_surname: formData.student_surname.trim(),
+      student_full_name: `${formData.student_fname} ${formData.student_surname}`.trim(),
+      dob: formData.dob,
+      gender: formData.gender,
+      class_applied: formData.class_applied,
+      student_type: formData.student_type,
+      parent_name: formData.parent_name.trim(),
+      parent_full_name: formData.parent_name.trim() || 'Not Provided',
+      parent_phone: formData.parent_phone.trim(),
+      phone: formData.parent_phone.trim(), // mapping to secondary field for safety
+      parent_email: formData.parent_email.trim(),
+      email: formData.parent_email.trim(), // mapping to secondary field for safety
+      address: formData.address.trim(),
+      prev_school: formData.prev_school.trim(),
       status: 'Pending'
     };
 
@@ -81,13 +71,7 @@ export default function Apply() {
       toast.success('Application submitted successfully!');
     } catch (error: any) {
       console.error("Supabase insert error:", error);
-      if (error?.code === '42P01' || error?.code === 'PGRST205' || (error?.message && error?.message?.includes("does not exist"))) {
-        toast.error('Central database table missing! Admin must run the setup script.', { duration: 10000 });
-      } else if (error?.code === '42501' || error?.message?.includes("row-level security") || error?.message?.includes("policy")) {
-        toast.error('Permission denied! Admin must update RLS policies.', { duration: 10000 });
-      } else {
-        toast.error(`Error saving centrally: ${error?.message || 'Database error occurred'}`);
-      }
+      toast.error(`Submission failed: ${error?.message || 'Database error occurred. Please try again.'}`, { duration: 8000 });
     } finally {
       setLoading(false);
     }
@@ -146,7 +130,7 @@ export default function Apply() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2 md:col-span-2">
+                <div className="space-y-2">
                   <Label htmlFor="class_applied">Class Applying For</Label>
                   <Select required onValueChange={(v: string) => handleSelectChange('class_applied', v)}>
                     <SelectTrigger><SelectValue placeholder="Select Class" /></SelectTrigger>
@@ -157,6 +141,16 @@ export default function Apply() {
                       <SelectItem value="SS1">SS 1</SelectItem>
                       <SelectItem value="SS2">SS 2</SelectItem>
                       <SelectItem value="SS3">SS 3</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="student_type">Student Type</Label>
+                  <Select required onValueChange={(v: string) => handleSelectChange('student_type', v)}>
+                    <SelectTrigger><SelectValue placeholder="Select Type" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="New">New Student</SelectItem>
+                      <SelectItem value="Old">Returning/Transfer Student</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

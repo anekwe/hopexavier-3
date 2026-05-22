@@ -67,8 +67,18 @@ export default function Applications() {
   const handleReset = async () => {
     setResetting(true);
     try {
-      const fakeUuid = '00000000-0000-0000-0000-000000000000';
-      await supabase.from('applications').delete().neq('id', fakeUuid);
+      let hasMore = true;
+      while (hasMore) {
+         const { data, error } = await supabase.from('applications').select('id').limit(1000);
+         if (error) throw new Error(error.message);
+         if (!data || data.length === 0) {
+            hasMore = false;
+            break;
+         }
+         const ids = data.map(r => r.id);
+         const { error: delError } = await supabase.from('applications').delete().in('id', ids);
+         if (delError) throw new Error(delError.message);
+      }
 
       toast.success('All testing applications wiped successfully!');
       setOpenDialog(false);

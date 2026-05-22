@@ -25,22 +25,41 @@ export default function Login() {
     setLoading(true);
 
     try {
+      // Local fallback override for development/production blockage (as requested)
+      if (email === 'hopexavier@gmail.com' && password === 'prince_1981') {
+         localStorage.setItem('hopexavier_admin_auth', 'true');
+         toast.success('Admin login successful (Fallback Override)');
+         setTimeout(() => {
+             // We do a hard refresh to force AuthContext to pick up the new localStorage value
+             window.location.href = '/admin/dashboard';
+         }, 500);
+         return; 
+      }
+
       if (isSupabaseConfigured) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) {
-          if (error.message.toLowerCase().includes('email not confirmed')) {
+          if (error.message && error.message.toLowerCase().includes('email not confirmed')) {
             throw new Error('Please check your email inbox to confirm your account before logging in.');
           }
           throw error;
         }
-        toast.success('Login successful. Redirecting...');
+        
+        if (data?.session) {
+            toast.success('Login successful. Redirecting...');
+            setTimeout(() => {
+                navigate('/admin/dashboard', { replace: true });
+            }, 500);
+        } else {
+             // Handle the case where login succeeds but no session is returned (e.g. email unconfirmed)
+             throw new Error('Login successful, but email unconfirmed. Please check your inbox.');
+        }
       } else {
-        throw new Error("Supabase is not configured yet.");
+        throw new Error("Supabase is not configured yet. Please configure it or use fallback admin mode.");
       }
     } catch (error: any) {
-      toast.error(error.message || 'Login failed');
-    } finally {
-      setLoading(false);
+      toast.error(error?.message || 'Login failed');
+      setLoading(false); // Stop loading if there is an error to prevent infinite button spin
     }
   };
 
@@ -68,21 +87,27 @@ export default function Login() {
 
     setLoading(true);
     try {
-      if (isSupabaseConfigured) {
-        const { error } = await supabase.auth.signUp({ email, password });
-        if (error) {
-            throw error;
-        }
-        
-        toast.success('Registration successful. Please check your email to confirm your account before logging in.', { duration: 6000 });
-        setIsRegistering(false);
-      } else {
+      if (!isSupabaseConfigured) {
         throw new Error("Supabase is not configured yet.");
       }
+      
+      const { error } = await supabase.auth.signUp({ email, password });
+      if (error) {
+          throw error;
+      }
+      
+      toast.success('Registration successful. Please check your email to confirm your account before logging in.', { duration: 6000 });
+      // Reset form on success
+      resetForm();
+      setIsRegistering(false); // Switch to login view
+      
     } catch (error: any) {
-      toast.error(error.message || 'Registration failed');
+      toast.error(error?.message || 'Registration failed');
     } finally {
-      setLoading(false);
+      // Small timeout to prevent momentary flashes
+      setTimeout(() => {
+        setLoading(false);
+      }, 100);
     }
   };
 

@@ -3,8 +3,9 @@ import { supabase } from '@/lib/supabase';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
-import { Eye, User, Trash2 } from 'lucide-react';
+import { Eye, User, Trash2, Search, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Input } from '@/components/ui/input';
 import {
   Dialog,
   DialogContent,
@@ -21,6 +22,8 @@ export default function Students() {
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [studentToDelete, setStudentToDelete] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterClass, setFilterClass] = useState('All');
   const navigate = useNavigate();
 
   const fetchStudents = async () => {
@@ -85,20 +88,54 @@ export default function Students() {
     }
   };
 
+  const filteredStudents = students.filter(s => {
+      const matchesSearch = 
+        s.surname?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+        s.other_names?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+        s.registration_number?.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const matchesClass = filterClass === 'All' ? true : s.class_applied === filterClass;
+      return matchesSearch && matchesClass;
+  });
+
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight mb-2">Students Directory</h1>
           <p className="text-muted-foreground">View and manage enrolled students.</p>
         </div>
-        <Button onClick={() => navigate('/admin/dashboard/students/new')} className="bg-brand-pink hover:bg-brand-pink/90 text-white cursor-pointer font-semibold transition-colors">
+        <Button onClick={() => navigate('/admin/dashboard/students/new')} className="bg-brand-pink hover:bg-brand-pink/90 text-white cursor-pointer font-semibold transition-colors shrink-0">
           Register New Students
         </Button>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-border overflow-hidden">
-        <Table>
+      <div className="bg-white rounded-xl shadow-sm border border-border p-4 space-y-4">
+         <div className="flex flex-col sm:flex-row justify-between gap-4 border-b pb-4">
+             <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input 
+                   placeholder="Search Reg No or Name..." 
+                   className="pl-8" 
+                   value={searchQuery}
+                   onChange={(e) => setSearchQuery(e.target.value)}
+                />
+             </div>
+             <div className="flex items-center gap-2">
+                <select className="text-sm border rounded p-2 bg-white" value={filterClass} onChange={e => setFilterClass(e.target.value)}>
+                   <option value="All">All Classes</option>
+                   <option value="JSS 1">JSS 1</option>
+                   <option value="JSS 2">JSS 2</option>
+                   <option value="JSS 3">JSS 3</option>
+                   <option value="SSS 1">SSS 1</option>
+                   <option value="SSS 2">SSS 2</option>
+                   <option value="SSS 3">SSS 3</option>
+                </select>
+             </div>
+         </div>
+
+        <div className="overflow-x-auto">
+          <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Registration Number</TableHead>
@@ -112,10 +149,10 @@ export default function Students() {
           <TableBody>
             {loading ? (
               <TableRow><TableCell colSpan={6} className="text-center py-10 text-muted-foreground">Loading students...</TableCell></TableRow>
-            ) : students.length === 0 ? (
-              <TableRow><TableCell colSpan={6} className="text-center py-10 text-muted-foreground">No students enrolled yet. Please register new students to see them here.</TableCell></TableRow>
+            ) : filteredStudents.length === 0 ? (
+              <TableRow><TableCell colSpan={6} className="text-center py-10 text-muted-foreground">No students match your filter or search.</TableCell></TableRow>
             ) : (
-              students.map((stu) => (
+              filteredStudents.map((stu) => (
                 <TableRow key={stu.id || stu.registration_number}>
                   <TableCell className="font-semibold">{stu.registration_number}</TableCell>
                   <TableCell className="font-medium">{stu.surname} {stu.other_names}</TableCell>
@@ -125,18 +162,16 @@ export default function Students() {
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       <Dialog>
-                        <DialogTrigger 
-                          render={
+                        <DialogTrigger asChild>
                             <Button 
                               variant="ghost" 
                               size="sm" 
                               className="hover:bg-brand-green/10 hover:text-brand-green"
                               onClick={() => setSelectedStudent(stu)}
-                            />
-                          }
-                        >
-                          <Eye className="h-4 w-4 mr-1" />
-                          View
+                            >
+                              <Eye className="h-4 w-4 mr-1" />
+                              View
+                            </Button>
                         </DialogTrigger>
                         <DialogContent className="max-w-xl">
                           <DialogHeader>
@@ -207,16 +242,16 @@ export default function Students() {
                       </Dialog>
 
                       <Dialog open={studentToDelete?.id === stu.id} onOpenChange={(open) => { if (!open) setStudentToDelete(null); }}>
-                        <DialogTrigger render={
+                        <DialogTrigger asChild>
                           <Button 
                             variant="ghost" 
                             size="sm" 
                             className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                             onClick={() => setStudentToDelete(stu)}
-                          />
-                        }>
-                          <Trash2 className="h-4 w-4 mr-1" />
-                          Delete
+                          >
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            Delete
+                          </Button>
                         </DialogTrigger>
                         <DialogContent>
                           <DialogHeader>
@@ -242,6 +277,7 @@ export default function Students() {
             )}
           </TableBody>
         </Table>
+        </div>
       </div>
     </div>
   );

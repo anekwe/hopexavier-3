@@ -12,12 +12,31 @@ export default function Navbar() {
   useEffect(() => {
     const fetchMarquee = async () => {
       try {
-        const dbPromise = supabase.from('site_settings').select('*').eq('key', 'marquee_text').single();
+        const dbPromise = supabase.from('site_settings').select('*').in('key', ['marquee_text', 'marquees_json']);
         const timeoutPromise = new Promise<{ data: any, error: any }>((resolve) => setTimeout(() => resolve({ data: null, error: new Error('TIMEOUT') }), 5000));
         const res: any = await Promise.race([dbPromise, timeoutPromise]);
         
-        if (res.data && res.data.value) {
-           setMarqueeText(res.data.value);
+        if (res.data && res.data.length > 0) {
+           const jsonRow = res.data.find((r: any) => r.key === 'marquees_json');
+           if (jsonRow) {
+             try {
+               const parsed = JSON.parse(jsonRow.value);
+               if (Array.isArray(parsed)) {
+                 const activeTexts = parsed.filter(m => m.active).map(m => m.text);
+                 if (activeTexts.length > 0) {
+                    setMarqueeText(activeTexts.join('   ✦   '));
+                    return;
+                 }
+               }
+             } catch (e) {
+               console.error("Failed to parse marquees_json");
+             }
+           }
+           
+           const textRow = res.data.find((r: any) => r.key === 'marquee_text');
+           if (textRow) {
+              setMarqueeText(textRow.value);
+           }
         } else if (res.error && res.error.message !== 'TIMEOUT' && res.error.code !== 'PGRST116') {
            console.warn("Could not fetch marquee text from Supabase:", res.error);
         }

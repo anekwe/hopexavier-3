@@ -18,8 +18,14 @@ import {
 export default function Dashboard() {
   const [stats, setStats] = useState({
     applications: 0,
+    pendingApplications: 0,
+    approvedApplications: 0,
+    rejectedApplications: 0,
     jobApplications: 0,
+    pendingJobApplications: 0,
+    approvedJobApplications: 0,
     students: 0,
+    staff: 0,
     posts: 0,
     contacts: 0
   });
@@ -83,40 +89,55 @@ export default function Dashboard() {
            }
         };
 
-        const [appRes, jobAppRes, stuRes, postRes, contRes] = await Promise.all([
+        const [
+          appRes, appPendingRes, appApprovedRes, appRejectedRes,
+          jobAppRes, jobAppPendingRes, jobAppApprovedRes,
+          stuRes, staffRes,
+          postRes, contRes
+        ] = await Promise.all([
           safeFetch(supabase.from('applications').select('*', { count: 'exact', head: true })),
+          safeFetch(supabase.from('applications').select('*', { count: 'exact', head: true }).ilike('status', '%pending%')),
+          safeFetch(supabase.from('applications').select('*', { count: 'exact', head: true }).ilike('status', '%approved%')),
+          safeFetch(supabase.from('applications').select('*', { count: 'exact', head: true }).ilike('status', '%rejected%')),
           safeFetch(supabase.from('job_applications').select('*', { count: 'exact', head: true })),
+          safeFetch(supabase.from('job_applications').select('*', { count: 'exact', head: true }).ilike('application_status', '%pending%')),
+          safeFetch(supabase.from('job_applications').select('*', { count: 'exact', head: true }).ilike('application_status', '%approved%')),
           safeFetch(supabase.from('registered_students').select('*', { count: 'exact', head: true })),
+          safeFetch(supabase.from('staff_documentation').select('*', { count: 'exact', head: true })),
           safeFetch(supabase.from('posts').select('*', { count: 'exact', head: true })),
           safeFetch(supabase.from('contacts').select('*', { count: 'exact', head: true }))
         ]);
 
         const activities: any[] = [];
         
-        const dbAppCount = appRes?.count || 0;
-        const dbJobAppCount = jobAppRes?.count || 0;
-        const dbStuCount = stuRes?.count || 0;
-        const dbPostCount = postRes?.count || 0;
-        const dbContCount = contRes?.count || 0;
-
         setStats({
-          applications: dbAppCount,
-          jobApplications: dbJobAppCount,
-          students: dbStuCount,
-          posts: dbPostCount,
-          contacts: dbContCount,
+          applications: appRes?.count || 0,
+          pendingApplications: appPendingRes?.count || 0,
+          approvedApplications: appApprovedRes?.count || 0,
+          rejectedApplications: appRejectedRes?.count || 0,
+          jobApplications: jobAppRes?.count || 0,
+          pendingJobApplications: jobAppPendingRes?.count || 0,
+          approvedJobApplications: jobAppApprovedRes?.count || 0,
+          students: stuRes?.count || 0,
+          staff: staffRes?.count || 0,
+          posts: postRes?.count || 0,
+          contacts: contRes?.count || 0,
         });
 
-        // Also fetch recent applications and contacts
-        const [recentApps, recentJobApps, recentContacts] = await Promise.all([
+        // Also fetch recent applications, staff and contacts
+        const [recentApps, recentJobApps, recentContacts, recentStudents, recentStaff] = await Promise.all([
           safeFetch(supabase.from('applications').select('id, created_at, student_fname, student_surname, class_applied').order('created_at', { ascending: false }).limit(3)),
           safeFetch(supabase.from('job_applications').select('id, created_at, surname, other_names, job_category').order('created_at', { ascending: false }).limit(3)),
-          safeFetch(supabase.from('contacts').select('id, created_at, name, message').order('created_at', { ascending: false }).limit(3))
+          safeFetch(supabase.from('contacts').select('id, created_at, name, message').order('created_at', { ascending: false }).limit(3)),
+          safeFetch(supabase.from('registered_students').select('id, created_at, surname, other_names, class_applied').order('created_at', { ascending: false }).limit(3)),
+          safeFetch(supabase.from('staff_documentation').select('id, created_at, surname, first_name, job_category').order('created_at', { ascending: false }).limit(3))
         ]);
 
         const combinedApps = [...(recentApps.data || [])];
         const combinedJobApps = [...(recentJobApps.data || [])];
         const combinedContacts = [...(recentContacts.data || [])];
+        const combinedStudents = [...(recentStudents.data || [])];
+        const combinedStaff = [...(recentStaff.data || [])];
 
         // Merge and sort
         if (combinedApps.length > 0) {
@@ -144,6 +165,24 @@ export default function Dashboard() {
              title: 'New Contact Message',
              description: `Message from ${msg.name}`,
              created_at: new Date(msg.created_at || Date.now())
+           })));
+        }
+        if (combinedStudents.length > 0) {
+           activities.push(...combinedStudents.map((app: any) => ({
+             id: `student_${app.id}`,
+             type: 'student',
+             title: 'New Student Admission',
+             description: `${app.surname} ${app.other_names} admitted to ${app.class_applied}`,
+             created_at: new Date(app.created_at || Date.now())
+           })));
+        }
+        if (combinedStaff.length > 0) {
+           activities.push(...combinedStaff.map((app: any) => ({
+             id: `staff_${app.id}`,
+             type: 'staff',
+             title: 'New Staff Registered',
+             description: `${app.first_name} ${app.surname} registered as ${app.job_category}`,
+             created_at: new Date(app.created_at || Date.now())
            })));
         }
 
@@ -186,11 +225,15 @@ export default function Dashboard() {
   }, []);
 
   const statCards = [
-    { title: 'Total Applications', value: stats.applications, icon: FileText, color: 'text-brand-green', bg: 'bg-brand-green/10' },
-    { title: 'Job Applications', value: stats.jobApplications, icon: Users, color: 'text-brand-pink', bg: 'bg-brand-pink/10' },
-    { title: 'Total Students', value: stats.students, icon: Users, color: 'text-brand-pink', bg: 'bg-brand-pink/10' },
-    { title: 'Blog Posts', value: stats.posts, icon: Activity, color: 'text-blue-500', bg: 'bg-blue-500/10' },
-    { title: 'New Messages', value: stats.contacts, icon: Mailbox, color: 'text-brand-pink', bg: 'bg-brand-pink/10' },
+    { title: 'Total Student Applications', value: stats.applications, icon: FileText, color: 'text-blue-500', bg: 'bg-blue-500/10' },
+    { title: 'Pending Admissions', value: stats.pendingApplications, icon: FileText, color: 'text-amber-500', bg: 'bg-amber-500/10' },
+    { title: 'Approved Admissions', value: stats.approvedApplications, icon: FileText, color: 'text-brand-green', bg: 'bg-brand-green/10' },
+    { title: 'Rejected Admissions', value: stats.rejectedApplications, icon: Trash2, color: 'text-red-500', bg: 'bg-red-500/10' },
+    { title: 'Total Registered Students', value: stats.students, icon: Users, color: 'text-brand-pink', bg: 'bg-brand-pink/10' },
+    { title: 'Total Staff', value: stats.staff, icon: Users, color: 'text-purple-500', bg: 'bg-purple-500/10' },
+    { title: 'Pending Job Applications', value: stats.pendingJobApplications, icon: Users, color: 'text-amber-500', bg: 'bg-amber-500/10' },
+    { title: 'Approved Job Applications', value: stats.approvedJobApplications, icon: Users, color: 'text-brand-green', bg: 'bg-brand-green/10' },
+    { title: 'Total Enquiries', value: stats.contacts, icon: Mailbox, color: 'text-indigo-500', bg: 'bg-indigo-500/10' },
   ];
 
   return (
@@ -276,11 +319,15 @@ export default function Dashboard() {
                      <div key={activity.id} className="p-6 flex items-center justify-between hover:bg-muted/30 transition-colors">
                         <div className="flex items-center gap-4">
                            {activity.type === 'application' ? (
-                              <div className="h-10 w-10 min-w-10 rounded-full bg-brand-green/10 flex items-center justify-center text-brand-green"><FileText className="h-5 w-5" /></div>
+                              <div className="h-10 w-10 min-w-10 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500"><FileText className="h-5 w-5" /></div>
                            ) : activity.type === 'job_application' ? (
-                              <div className="h-10 w-10 min-w-10 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500"><Users className="h-5 w-5" /></div>
+                              <div className="h-10 w-10 min-w-10 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500"><Users className="h-5 w-5" /></div>
+                           ) : activity.type === 'student' ? (
+                              <div className="h-10 w-10 min-w-10 rounded-full bg-brand-pink/10 flex items-center justify-center text-brand-pink"><Users className="h-5 w-5" /></div>
+                           ) : activity.type === 'staff' ? (
+                              <div className="h-10 w-10 min-w-10 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-500"><Users className="h-5 w-5" /></div>
                            ) : (
-                              <div className="h-10 w-10 min-w-10 rounded-full bg-brand-pink/10 flex items-center justify-center text-brand-pink"><Mailbox className="h-5 w-5" /></div>
+                              <div className="h-10 w-10 min-w-10 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-500"><Mailbox className="h-5 w-5" /></div>
                            )}
                            <div className="truncate pr-4">
                               <p className="text-sm font-medium">{activity.title}</p>

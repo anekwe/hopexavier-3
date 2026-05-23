@@ -45,33 +45,41 @@ export default function Apply() {
     
     // Construct real production payload matching Supabase exactly, ensuring no nulls for required fields
     const payload = {
-      student_fname: formData.student_fname.trim(),
-      student_surname: formData.student_surname.trim(),
+      student_fname: formData.student_fname?.trim() || '',
+      student_surname: formData.student_surname?.trim() || '',
       student_full_name: `${formData.student_fname} ${formData.student_surname}`.trim(),
-      dob: formData.dob,
-      gender: formData.gender,
-      class_applied: formData.class_applied,
-      student_type: formData.student_type,
-      parent_name: formData.parent_name.trim(),
-      parent_full_name: formData.parent_name.trim() || 'Not Provided',
-      parent_phone: formData.parent_phone.trim(),
-      phone: formData.parent_phone.trim(), // mapping to secondary field for safety
-      parent_email: formData.parent_email.trim(),
-      email: formData.parent_email.trim(), // mapping to secondary field for safety
-      address: formData.address.trim(),
-      prev_school: formData.prev_school.trim(),
+      dob: formData.dob || null,
+      gender: formData.gender || null,
+      class_applied: formData.class_applied || null,
+      student_type: formData.student_type || null,
+      parent_name: formData.parent_name?.trim() || '',
+      parent_full_name: formData.parent_name?.trim() || 'Not Provided',
+      parent_phone: formData.parent_phone?.trim() || '',
+      phone: formData.parent_phone?.trim() || '', 
+      parent_email: formData.parent_email?.trim() || '',
+      email: formData.parent_email?.trim() || '',
+      address: formData.address?.trim() || '',
+      prev_school: formData.prev_school?.trim() || '',
       status: 'Pending'
     };
 
     try {
-      const { error: dbError } = await supabase.from('applications').insert([payload]);
-      if (dbError) throw dbError;
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), 15000));
+      const insertPromise = supabase.from('applications').insert([payload]);
+      
+      const res: any = await Promise.race([insertPromise, timeoutPromise]);
+      
+      if (res && res.error) {
+         throw res.error;
+      }
       
       setSubmitted(true);
       toast.success('Application submitted successfully!');
     } catch (error: any) {
       console.error("Supabase insert error:", error);
-      toast.error(`Submission failed: ${error?.message || 'Database error occurred. Please try again.'}`, { duration: 8000 });
+      const errorMsg = error?.message || 'Database error occurred. Please try again.';
+      toast.error(`Submission failed: ${errorMsg}`, { duration: 8000 });
+      setSubmitted(false);
     } finally {
       setLoading(false);
     }

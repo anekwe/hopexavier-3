@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { queryWithTimeout } from '@/lib/utils/supabase-timeout';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
@@ -26,15 +27,44 @@ export default function Students() {
   const [filterClass, setFilterClass] = useState('All');
   const navigate = useNavigate();
 
-  const fetchStudents = async () => {
-    setLoading(true);
+  const fetchStudents = async (showFullLoader = true) => {
+    if (showFullLoader) setLoading(true);
     try {
-      if (!supabase) throw new Error("Supabase is not configured.");
-      
-      const { data, error } = await supabase
+      if (!isSupabaseConfigured) {
+        const localData = localStorage.getItem('hopexavier_mock_students');
+        if (localData) {
+          setStudents(JSON.parse(localData));
+        } else {
+          const seed = [
+            {
+              id: 'mock-student-1',
+              created_at: new Date().toISOString(),
+              surname: 'Okonkwo',
+              other_names: 'Marvelous',
+              registration_number: 'HFA/2026/012',
+              class_applied: 'JS1',
+              gender: 'male',
+              dob: '2012-06-15',
+              parent_name: 'Chioma Okonkwo',
+              parent_phone: '08123456789',
+              parent_email: 'chioma@gmail.com',
+              residential_address: '15 Guita Area Council, Abuja',
+              blood_group: 'O+',
+              genotype: 'AA',
+              allergies: 'None',
+              medical_conditions: 'None'
+            }
+          ];
+          localStorage.setItem('hopexavier_mock_students', JSON.stringify(seed));
+          setStudents(seed);
+        }
+        return;
+      }
+
+      const { data, error } = await queryWithTimeout(supabase
         .from('registered_students')
         .select('*')
-        .order('registration_number', { ascending: false });
+        .order('registration_number', { ascending: false }));
 
       if (error) {
         console.error("Supabase error:", error);
@@ -45,18 +75,18 @@ export default function Students() {
     } catch (e: any) {
       console.error("Error fetching students:", e);
     } finally {
-      setLoading(false);
+      if (showFullLoader) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchStudents();
+    fetchStudents(true);
 
-    if (supabase) {
+    if (isSupabaseConfigured && supabase) {
       const channel = supabase
         .channel('students_changes')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'registered_students' }, () => {
-          fetchStudents();
+          fetchStudents(false);
         })
         .subscribe();
 
@@ -69,7 +99,23 @@ export default function Students() {
   const handleDelete = async () => {
     if (!studentToDelete) return;
     setDeletingId(studentToDelete.id);
+    
+    // Instant UI Update - slice from state immediately
+    setStudents(prev => prev.filter(s => s.id !== studentToDelete.id));
+
     try {
+      if (!isSupabaseConfigured) {
+        const localData = localStorage.getItem('hopexavier_mock_students');
+        if (localData) {
+          const parsed = JSON.parse(localData);
+          const filtered = parsed.filter((s: any) => s.id !== studentToDelete.id);
+          localStorage.setItem('hopexavier_mock_students', JSON.stringify(filtered));
+        }
+        toast.success("Student deleted successfully.");
+        setStudentToDelete(null);
+        return;
+      }
+
       const { error } = await supabase
         .from('registered_students')
         .delete()
@@ -77,12 +123,14 @@ export default function Students() {
         
       if (error) throw error;
       
-      setStudents(prev => prev.filter(s => s.id !== studentToDelete.id));
       toast.success("Student deleted successfully.");
       setStudentToDelete(null);
+      fetchStudents(false);
+      window.dispatchEvent(new Event('dashboardStatsNeedRefresh'));
     } catch (e: any) {
       console.error("Error deleting student:", e);
       toast.error(`Error deleting student: ${e.message}`);
+      fetchStudents(false); // Restore state if actually failed
     } finally {
       setDeletingId(null);
     }

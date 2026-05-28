@@ -20,7 +20,7 @@ export default function Contact() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!formData.name || formData.name.trim().length === 0) {
@@ -33,34 +33,39 @@ export default function Contact() {
       return;
     }
     
-    const textMessage = `New Contact Form Submission:\n\nName: ${formData.name}\nEmail: ${formData.email}\nPhone: ${formData.phone}\nMessage: ${formData.message}`;
-    const whatsappUrl = `https://wa.me/2348036987095?text=${encodeURIComponent(textMessage)}`;
-
-    // Open WhatsApp synchronously to bypass popup blockers
+    // Save data before showing success
+    setLoading(true);
     try {
-      const win = window.open(whatsappUrl, '_blank');
-      if (!win) {
-        window.location.href = whatsappUrl;
+      if (supabase) {
+        const { error } = await supabase.from('contacts').insert([{ ...formData, status: 'Unread' }]);
+        if (error) {
+           console.error("Supabase insert failed", error);
+           toast.error(`Failed to submit enquiry: ${error.message}`);
+           setLoading(false);
+           return;
+        }
       }
-    } catch (e) {
-      window.location.href = whatsappUrl;
-    }
+      
+      const textMessage = `New Contact Form Submission:\n\nName: ${formData.name}\nEmail: ${formData.email}\nPhone: ${formData.phone}\nMessage: ${formData.message}`;
+      const whatsappUrl = `https://wa.me/2348036987095?text=${encodeURIComponent(textMessage)}`;
 
-    toast.success('Message sent! WhatsApp opened.');
-
-    // Save data in the background
-    (async () => {
+      // Open WhatsApp synchronously to bypass popup blockers
       try {
-        if (supabase) {
-          const { error } = await supabase.from('contacts').insert([formData]);
-          if (error) throw error;
+        const win = window.open(whatsappUrl, '_blank');
+        if (!win) {
+          window.location.href = whatsappUrl;
         }
       } catch (e) {
-         console.error("Supabase insert failed", e);
+        window.location.href = whatsappUrl;
       }
-    })();
 
-    setFormData({ name: '', email: '', phone: '', message: '' });
+      toast.success('Message sent! WhatsApp opened.');
+      setFormData({ name: '', email: '', phone: '', message: '' });
+    } catch (e: any) {
+      toast.error('An error occurred submitting the form.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

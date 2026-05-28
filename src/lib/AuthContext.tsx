@@ -32,23 +32,43 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
 
     if (isSupabaseConfigured) {
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (localStorage.getItem('hopexavier_admin_auth') !== 'true') {
-           setSession(session);
-           setUser(session?.user ?? null);
-           setLoading(false);
-        }
-      });
+      supabase.auth.getSession()
+        .then(({ data: { session } }) => {
+          if (localStorage.getItem('hopexavier_admin_auth') !== 'true') {
+             setSession(session);
+             setUser(session?.user ?? null);
+             setLoading(false);
+          }
+        })
+        .catch((err) => {
+          console.error("AuthContext - getSession error:", err);
+          if (localStorage.getItem('hopexavier_admin_auth') !== 'true') {
+             setLoading(false);
+          }
+        });
 
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      let subscription: any = null;
+      try {
+        const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+          if (localStorage.getItem('hopexavier_admin_auth') !== 'true') {
+             setSession(session);
+             setUser(session?.user ?? null);
+             setLoading(false);
+          }
+        });
+        subscription = data?.subscription;
+      } catch (err) {
+        console.error("AuthContext - onAuthStateChange subscribe error:", err);
         if (localStorage.getItem('hopexavier_admin_auth') !== 'true') {
-           setSession(session);
-           setUser(session?.user ?? null);
-           setLoading(false);
+          setLoading(false);
         }
-      });
+      }
 
-      return () => subscription.unsubscribe();
+      return () => {
+        if (subscription && typeof subscription.unsubscribe === 'function') {
+          subscription.unsubscribe();
+        }
+      };
     } else {
       if (localAdmin !== 'true') {
          setLoading(false);

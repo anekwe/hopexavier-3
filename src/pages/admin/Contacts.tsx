@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { queryWithTimeout } from '@/lib/utils/supabase-timeout';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -13,15 +14,34 @@ export default function Contacts() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('All');
 
-  const fetchContacts = async () => {
-    setLoading(true);
+  const fetchContacts = async (showFullLoader = true) => {
+    if (showFullLoader) setLoading(true);
     try {
-      if (!supabase) throw new Error("Supabase is not configured.");
-      
-      const { data, error } = await supabase
+      if (!isSupabaseConfigured) {
+        const localData = localStorage.getItem('hopexavier_mock_contacts');
+        if (localData) {
+          setContacts(JSON.parse(localData));
+        } else {
+          const seed = [
+            {
+              id: 'mock-msg-1',
+              created_at: new Date().toISOString(),
+              name: 'Dr. Chioma',
+              email: 'chioma@gmail.com',
+              message: 'Hello Hopexavier First Academy, please when are admissions starting for next term?',
+              status: 'Unread'
+            }
+          ];
+          localStorage.setItem('hopexavier_mock_contacts', JSON.stringify(seed));
+          setContacts(seed);
+        }
+        return;
+      }
+
+      const { data, error } = await queryWithTimeout(supabase
         .from('contacts')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }));
 
       if (error) {
          console.error("Supabase error:", error);
@@ -32,18 +52,18 @@ export default function Contacts() {
     } catch (e: any) {
       console.error("Error fetching contacts:", e);
     } finally {
-      setLoading(false);
+      if (showFullLoader) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchContacts();
+    fetchContacts(true);
 
-    if (supabase) {
+    if (isSupabaseConfigured && supabase) {
       const channel = supabase
         .channel('contacts_changes')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, () => {
-          fetchContacts();
+          fetchContacts(false);
         })
         .subscribe();
 
@@ -54,25 +74,57 @@ export default function Contacts() {
   }, []);
 
   const updateStatus = async (id: string, newStatus: string) => {
+     // Local instant state update
+     setContacts(prev => prev.map(c => c.id === id ? { ...c, status: newStatus } : c));
+
      try {
+       if (!isSupabaseConfigured) {
+          const localData = localStorage.getItem('hopexavier_mock_contacts');
+          if (localData) {
+             const parsed = JSON.parse(localData);
+             const updated = parsed.map((c: any) => c.id === id ? { ...c, status: newStatus } : c);
+             localStorage.setItem('hopexavier_mock_contacts', JSON.stringify(updated));
+          }
+          toast.success(`Message marked as ${newStatus}`);
+          return;
+       }
+
        const { error } = await supabase.from('contacts').update({ status: newStatus }).eq('id', id);
        if (error) throw error;
        toast.success(`Message marked as ${newStatus}`);
-       fetchContacts();
+       fetchContacts(false);
+       window.dispatchEvent(new Event('dashboardStatsNeedRefresh'));
      } catch (e: any) {
        toast.error("Failed to update status");
+       fetchContacts(false);
      }
   };
 
   const deleteMessage = async (id: string) => {
      if(!window.confirm("Are you sure you want to delete this enquiry?")) return;
+     // Instant local update
+     setContacts(prev => prev.filter(c => c.id !== id));
+
      try {
+       if (!isSupabaseConfigured) {
+         const localData = localStorage.getItem('hopexavier_mock_contacts');
+         if (localData) {
+            const parsed = JSON.parse(localData);
+            const filtered = parsed.filter((c: any) => c.id !== id);
+            localStorage.setItem('hopexavier_mock_contacts', JSON.stringify(filtered));
+         }
+         toast.success("Message deleted permanently.");
+         return;
+       }
+
        const { error } = await supabase.from('contacts').delete().eq('id', id);
        if (error) throw error;
        toast.success("Message deleted");
-       setContacts(contacts.filter(c => c.id !== id));
+       fetchContacts(false);
+       window.dispatchEvent(new Event('dashboardStatsNeedRefresh'));
      } catch (e: any) {
        toast.error("Failed to delete message");
+       fetchContacts(false);
      }
   };
 

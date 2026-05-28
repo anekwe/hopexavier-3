@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { queryWithTimeout } from '@/lib/utils/supabase-timeout';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -10,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, Search, Briefcase, ExternalLink, Calendar, Filter } from 'lucide-react';
+import { Loader2, Search, Briefcase, ExternalLink, Calendar, Filter, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -23,30 +24,38 @@ export default function AdminJobs() {
   const [filterCategory, setFilterCategory] = useState<string>('All');
   const [filterStatus, setFilterStatus] = useState<string>('All');
 
-  useEffect(() => {
-    fetchApplications();
-
-    if (supabase) {
-      const channel = supabase
-        .channel('job_applications_changes')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'job_applications' }, () => {
-          fetchApplications();
-        })
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    }
-  }, []);
-
-  const fetchApplications = async () => {
-    setLoading(true);
+  const fetchApplications = async (showFullLoader = true) => {
+    if (showFullLoader) setLoading(true);
     try {
-      const { data, error } = await supabase
+      if (!isSupabaseConfigured) {
+        const localData = localStorage.getItem('hopexavier_mock_jobs');
+        if (localData) {
+          setApplications(JSON.parse(localData));
+        } else {
+          const seed = [
+            {
+              id: 'mock-job-1',
+              created_at: new Date().toISOString(),
+              surname: 'Solomon',
+              other_names: 'Chukwuemeka',
+              email_address: 'solomon@gmail.com',
+              phone_number: '09012345678',
+              job_category: 'Academic Staff (Teacher)',
+              educational_qualifications: 'B.Ed in Mathematics, University of Ibadan',
+              application_status: 'Pending',
+              documentation_status: 'Pending'
+            }
+          ];
+          localStorage.setItem('hopexavier_mock_jobs', JSON.stringify(seed));
+          setApplications(seed);
+        }
+        return;
+      }
+
+      const { data, error } = await queryWithTimeout(supabase
         .from('job_applications')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }));
 
       if (error) {
          console.error("Supabase error:", error);
@@ -58,21 +67,54 @@ export default function AdminJobs() {
       console.error("Error fetching job applications:", e);
       toast.error("Error fetching job applications");
     } finally {
-      setLoading(false);
+      if (showFullLoader) setLoading(false);
     }
   };
 
+  useEffect(() => {
+    fetchApplications(true);
+
+    if (isSupabaseConfigured && supabase) {
+      const channel = supabase
+        .channel('job_applications_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'job_applications' }, () => {
+          fetchApplications(false);
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, []);
+
   const updateStatus = async (id: string, newStatus: string) => {
+     // Instant local update
+     setApplications(prev => prev.map(app => app.id === id ? { ...app, application_status: newStatus } : app));
+
      try {
+         if (!isSupabaseConfigured) {
+            const localData = localStorage.getItem('hopexavier_mock_jobs');
+            if (localData) {
+               const parsed = JSON.parse(localData);
+               const updated = parsed.map((app: any) => app.id === id ? { ...app, application_status: newStatus } : app);
+               localStorage.setItem('hopexavier_mock_jobs', JSON.stringify(updated));
+            }
+            toast.success(`Status updated to ${newStatus}`);
+            return;
+         }
+
          const { error } = await supabase.from('job_applications').update({ application_status: newStatus }).eq('id', id);
          if (error) {
              throw error;
          }
          
          toast.success(`Status updated to ${newStatus}`);
-         fetchApplications();
+         fetchApplications(false);
+         window.dispatchEvent(new Event('dashboardStatsNeedRefresh'));
      } catch (e: any) {
          toast.error(e.message || "Failed to update status");
+         fetchApplications(false);
      }
   };
 
@@ -195,6 +237,39 @@ export default function AdminJobs() {
                       </TableCell>
                       <TableCell className="text-right space-x-2">
                         
+                        <Button 
+                          variant="destructive" 
+                          size="sm" 
+                          onClick={async () => {
+                            if (window.confirm('Are you sure you want to permanently delete this job application?')) {
+                              try {
+                                const { error } = await (async () => {
+                                  setApplications(prev => prev.filter(item => item.id !== app.id));
+                                  if (!isSupabaseConfigured) {
+                                    const localData = localStorage.getItem('hopexavier_mock_jobs');
+                                    if (localData) {
+                                      const parsed = JSON.parse(localData);
+                                      const filtered = parsed.filter((a: any) => a.id !== app.id);
+                                      localStorage.setItem('hopexavier_mock_jobs', JSON.stringify(filtered));
+                                    }
+                                    toast.success('Job application deleted successfully.');
+                                    return { error: null };
+                                  }
+                                  return supabase.from('job_applications').delete().eq('id', app.id);
+                                })();
+                                if (error) throw error;
+                                toast.success('Job application deleted successfully!');
+                                fetchApplications(false);
+                                window.dispatchEvent(new Event('dashboardStatsNeedRefresh'));
+                              } catch (e: any) {
+                                toast.error('Failed to delete job application: ' + e.message);
+                              }
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+
                         <Dialog>
                           <DialogTrigger asChild>
                             <Button variant="outline" size="sm">View</Button>

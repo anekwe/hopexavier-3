@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { queryWithTimeout } from '@/lib/utils/supabase-timeout';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -23,15 +24,46 @@ export default function Applications() {
   const [openDialog, setOpenDialog] = useState(false);
   const { session } = useAuth();
 
-  const fetchApplications = async () => {
-    setLoading(true);
+  const fetchApplications = async (showFullLoader = true) => {
+    console.log("fetchApplications started, showFullLoader:", showFullLoader);
+    if (showFullLoader) setLoading(true);
     try {
-      if (!supabase) throw new Error("Supabase is not configured.");
-      
-      const { data, error } = await supabase
+      if (!isSupabaseConfigured) {
+        console.log("fetchApplications: Supabase not configured");
+        const localData = localStorage.getItem('hopexavier_mock_applications');
+        if (localData) {
+          setApplications(JSON.parse(localData));
+        } else {
+          const seed = [
+            {
+              id: 'mock-1',
+              created_at: new Date().toISOString(),
+              student_fname: 'Marvelous',
+              student_surname: 'Okonkwo',
+              dob: '2012-06-15',
+              gender: 'male',
+              class_applied: 'JS1',
+              parent_name: 'Chioma Okonkwo',
+              parent_phone: '08123456789',
+              parent_email: 'chioma@gmail.com',
+              address: '15 Guita Area Council, Abuja',
+              prev_school: 'LEA Primary School',
+              status: 'Pending'
+            }
+          ];
+          localStorage.setItem('hopexavier_mock_applications', JSON.stringify(seed));
+          setApplications(seed);
+        }
+        return;
+      }
+
+      console.log("fetchApplications: Supabase is configured, issuing query...");
+      const { data, error } = await queryWithTimeout(supabase
         .from('applications')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }));
+
+      console.log("fetchApplications: query resolved, error:", error, "data:", data ? data.length : 0);
 
       if (error) {
         console.error("Supabase error:", error);
@@ -43,18 +75,19 @@ export default function Applications() {
       console.error("Error fetching applications:", e);
       toast.error("Failed to fetch applications");
     } finally {
-      setLoading(false);
+      console.log("fetchApplications finally block, setting loading false");
+      if (showFullLoader) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchApplications();
+    fetchApplications(true);
 
-    if (supabase) {
+    if (isSupabaseConfigured && supabase) {
       const channel = supabase
         .channel('applications_changes')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'applications' }, () => {
-          fetchApplications();
+          fetchApplications(false); // Backgound refresh only
         })
         .subscribe();
 
@@ -66,9 +99,19 @@ export default function Applications() {
 
   const handleReset = async () => {
     setResetting(true);
+    setApplications([]);
     try {
+      if (!isSupabaseConfigured) {
+        localStorage.removeItem('hopexavier_mock_applications');
+        toast.success('All testing applications wiped successfully!');
+        setOpenDialog(false);
+        return;
+      }
+
       let hasMore = true;
-      while (hasMore) {
+      let loopCount = 0;
+      while (hasMore && loopCount < 50) {
+         loopCount++;
          const { data, error } = await supabase.from('applications').select('id').limit(1000);
          if (error) throw new Error(error.message);
          if (!data || data.length === 0) {
@@ -77,21 +120,51 @@ export default function Applications() {
          }
          const ids = data.map(r => r.id);
          const { error: delError } = await supabase.from('applications').delete().in('id', ids);
-         if (delError) throw new Error(delError.message);
+         
+         if (delError) {
+             console.warn("Initial bulk delete failed, attempting fallback...", delError);
+             const { error: fallbackError } = await supabase.from('applications').delete().not('created_at', 'is', null);
+             if (fallbackError) throw new Error(fallbackError.message);
+             hasMore = false;
+         } else {
+             // Verify if actually deleted to avoid infinite loop due to RLS block
+             const { count, error: countError } = await supabase.from('applications').select('id', { count: 'exact', head: true }).in('id', ids);
+             if (count && count > 0) {
+                 console.warn("Rows were not deleted despite no error. Attempting fallback...");
+                 const { error: fallbackError } = await supabase.from('applications').delete().not('created_at', 'is', null);
+                 if (fallbackError) throw new Error(fallbackError.message);
+                 hasMore = false;
+             }
+         }
       }
 
       toast.success('All testing applications wiped successfully!');
       setOpenDialog(false);
-      setApplications([]);
+      window.dispatchEvent(new Event('dashboardStatsNeedRefresh'));
     } catch (e: any) {
       toast.error('Failed to reset data: ' + e.message);
+      fetchApplications(false);
     } finally {
       setResetting(false);
     }
   };
 
   const updateStatus = async (id: string, status: string, appData?: any) => {
+    // Instant UI update
+    setApplications(prev => prev.map(app => app.id === id ? { ...app, status } : app));
+
     try {
+      if (!isSupabaseConfigured) {
+        const localData = localStorage.getItem('hopexavier_mock_applications');
+        if (localData) {
+          const parsed = JSON.parse(localData);
+          const updated = parsed.map((app: any) => app.id === id ? { ...app, status } : app);
+          localStorage.setItem('hopexavier_mock_applications', JSON.stringify(updated));
+        }
+        toast.success(`Application updated to ${status}`);
+        return;
+      }
+
       const { error } = await supabase
         .from('applications')
         .update({ status })
@@ -104,10 +177,12 @@ export default function Applications() {
          toast.success(`Application updated to ${status}`);
       }
       
-      fetchApplications();
+      fetchApplications(false);
+      window.dispatchEvent(new Event('dashboardStatsNeedRefresh'));
     } catch (e: any) {
        console.error("Error updating application", e);
        toast.error("Failed to update status");
+       fetchApplications(false);
     }
   };
 
@@ -224,6 +299,43 @@ export default function Applications() {
                        disabled={app.status === 'Rejected'}
                     >
                        Reject
+                    </Button>
+                    <Button
+                       className="flex-none text-red-500 bg-red-50 hover:bg-red-100 border border-red-200"
+                       variant="outline"
+                       title="Delete Application"
+                       onClick={async () => {
+                         if (window.confirm('Are you sure you want to permanently delete this application?')) {
+                            try {
+                              const { error } = await (async () => {
+                                  // Optimistically filter the application in state so it disappears instantly from the screen
+                                  setApplications(prev => prev.filter(item => item.id !== app.id));
+                                  
+                                  if (!isSupabaseConfigured) {
+                                    const localData = localStorage.getItem('hopexavier_mock_applications');
+                                    if (localData) {
+                                      const parsed = JSON.parse(localData);
+                                      const filtered = parsed.filter((a: any) => a.id !== app.id);
+                                      localStorage.setItem('hopexavier_mock_applications', JSON.stringify(filtered));
+                                    }
+                                    toast.success('Application deleted successfully.');
+                                    return { error: null };
+                                  }
+                                  return supabase.from('applications').delete().eq('id', app.id);
+                               })();
+                              if (error) throw error;
+                              // Force a hard refresh of state just in case realtime drops it
+                              toast.success('Application deleted successfully!');
+                              // actually this runs inside the render, so we shouldn't reference state unless it's in a func, fetchApplications is better
+                              fetchApplications(false);
+                              window.dispatchEvent(new Event('dashboardStatsNeedRefresh'));
+                            } catch (e) {
+                              toast.error('Failed to delete application: ' + e.message);
+                            }
+                         }
+                       }}
+                    >
+                       <Trash2 className="h-4 w-4" />
                     </Button>
                  </div>
               </div>

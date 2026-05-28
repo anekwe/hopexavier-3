@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { queryWithTimeout } from '@/lib/utils/supabase-timeout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,11 +21,11 @@ export default function Settings() {
   const fetchSettings = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await queryWithTimeout(supabase
         .from('site_settings')
         .select('*')
         .eq('key', 'marquees_json')
-        .single();
+        .single());
       
       if (error && error.code !== 'PGRST116') throw error;
 

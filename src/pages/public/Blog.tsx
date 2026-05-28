@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Calendar } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { queryWithTimeout } from '@/lib/utils/supabase-timeout';
 
 export default function Blog() {
   const [posts, setPosts] = useState<any[]>([]);
@@ -12,10 +13,11 @@ export default function Blog() {
     setLoading(true);
     try {
       if (!supabase) throw new Error("Supabase is not configured.");
-      const { data, error } = await supabase
+      const { data, error } = await queryWithTimeout(supabase
         .from('posts')
         .select('*')
-        .order('created_at', { ascending: false });
+        .or('status.eq.Published,status.is.null')
+        .order('created_at', { ascending: false }));
 
       if (error) {
          throw error;

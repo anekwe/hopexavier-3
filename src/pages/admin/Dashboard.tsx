@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, FileText, Mailbox, Activity, Trash2 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
@@ -50,7 +50,11 @@ export default function Dashboard() {
          // Loop and delete in batches to bypass PostgreSQL mass-delete restrictions and UUID/int casting issues
          while (hasMore) {
             const { data, error } = await supabase.from(table).select('id').limit(1000);
-            if (error) throw new Error(`Table ${table} error: ${error.message}`);
+            if (error) {
+                console.warn(`Table ${table} error: ${error.message}`);
+                hasMore = false;
+                break; // Skip to next table
+            }
             
             if (!data || data.length === 0) {
                hasMore = false;
@@ -59,7 +63,11 @@ export default function Dashboard() {
             
             const ids = data.map(r => r.id);
             const { error: delError } = await supabase.from(table).delete().in('id', ids);
-            if (delError) throw new Error(`Delete failed on ${table}: ${delError.message}`);
+            if (delError) {
+                console.warn(`Delete failed on ${table}: ${delError.message}`);
+                hasMore = false;
+                break;
+            }
          }
       }
 
@@ -76,8 +84,70 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    const fetchStats = async () => {
+    const fetchStats = async (showLoader = false) => {
+      if (showLoader === true && !stats.applications) setLoading(true);
       try {
+        if (!isSupabaseConfigured) {
+           const localApps = JSON.parse(localStorage.getItem('hopexavier_mock_applications') || '[]');
+           const localStudents = JSON.parse(localStorage.getItem('hopexavier_mock_students') || '[]');
+           const localStaff = JSON.parse(localStorage.getItem('hopexavier_mock_staff') || '[]');
+           const localJobs = JSON.parse(localStorage.getItem('hopexavier_mock_jobs') || '[]');
+           
+           const pendingAppsCount = localApps.filter((a: any) => (a.status || '').toLowerCase() === 'pending').length;
+           const approvedAppsCount = localApps.filter((a: any) => (a.status || '').toLowerCase() === 'accepted').length;
+           const rejectedAppsCount = localApps.filter((a: any) => (a.status || '').toLowerCase() === 'rejected').length;
+
+           const pendingJobsCount = localJobs.filter((j: any) => (j.application_status || '').toLowerCase() === 'pending').length;
+           const approvedJobsCount = localJobs.filter((j: any) => (j.application_status || '').toLowerCase() === 'employed').length;
+
+           setStats({
+             applications: localApps.length,
+             pendingApplications: pendingAppsCount,
+             approvedApplications: approvedAppsCount,
+             rejectedApplications: rejectedAppsCount,
+             jobApplications: localJobs.length,
+             pendingJobApplications: pendingJobsCount,
+             approvedJobApplications: approvedJobsCount,
+             students: localStudents.length,
+             staff: localStaff.length,
+             posts: 2,
+             contacts: 1
+           });
+
+           const activities: any[] = [];
+           localApps.slice(0, 3).forEach((a: any) => {
+             activities.push({
+               id: `app-act-${a.id}`,
+               title: 'Admissions Application',
+               description: `${a.student_fname} ${a.student_surname} (${a.class_applied || 'N/A'}) is ${a.status || 'Pending'}`,
+               created_at: new Date(a.created_at || Date.now()),
+               type: 'application'
+             });
+           });
+           localStudents.slice(0, 3).forEach((s: any) => {
+             activities.push({
+               id: `stu-act-${s.id}`,
+               title: 'Student Registered',
+               description: `${s.surname} ${s.other_names} (${s.registration_number})`,
+               created_at: new Date(s.created_at || Date.now()),
+               type: 'student'
+             });
+           });
+           localStaff.slice(0, 3).forEach((st: any) => {
+             activities.push({
+               id: `st-act-${st.id}`,
+               title: 'Staff Documented',
+               description: `${st.surname} ${st.first_name} (${st.staff_number})`,
+               created_at: new Date(st.created_at || Date.now()),
+               type: 'staff'
+             });
+           });
+
+           activities.sort((a,b) => b.created_at.getTime() - a.created_at.getTime());
+           setRecentActivities(activities.slice(0, 5));
+           setLoading(false);
+           return;
+        }
         const timeout = (ms: number) => new Promise<{ count: number, data: any[] | null }>((_, reject) => setTimeout(() => reject(new Error("Timeout")), ms));
         
         const safeFetch = async (promise: any) => {
@@ -97,7 +167,7 @@ export default function Dashboard() {
         ] = await Promise.all([
           safeFetch(supabase.from('applications').select('*', { count: 'exact', head: true })),
           safeFetch(supabase.from('applications').select('*', { count: 'exact', head: true }).ilike('status', '%pending%')),
-          safeFetch(supabase.from('applications').select('*', { count: 'exact', head: true }).ilike('status', '%approved%')),
+          safeFetch(supabase.from('applications').select('*', { count: 'exact', head: true }).ilike('status', '%accepted%')),
           safeFetch(supabase.from('applications').select('*', { count: 'exact', head: true }).ilike('status', '%rejected%')),
           safeFetch(supabase.from('job_applications').select('*', { count: 'exact', head: true })),
           safeFetch(supabase.from('job_applications').select('*', { count: 'exact', head: true }).ilike('application_status', '%pending%')),
@@ -196,32 +266,42 @@ export default function Dashboard() {
       }
     };
 
-    fetchStats();
+    fetchStats(true);
 
-    if (supabase) {
+    const handleGlobalRefresh = () => {
+      fetchStats(false);
+    };
+    window.addEventListener('dashboardStatsNeedRefresh', handleGlobalRefresh);
+
+    if (isSupabaseConfigured && supabase) {
       const channel = supabase
-        .channel('dashboard_changes')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'applications' }, () => {
-          fetchStats();
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'job_applications' }, () => {
-          fetchStats();
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'registered_students' }, () => {
-          fetchStats();
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => {
-          fetchStats();
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, () => {
-          fetchStats();
-        })
-        .subscribe();
+         .channel('dashboard_changes')
+         .on('postgres_changes', { event: '*', schema: 'public', table: 'applications' }, () => {
+           fetchStats();
+         })
+         .on('postgres_changes', { event: '*', schema: 'public', table: 'job_applications' }, () => {
+           fetchStats();
+         })
+         .on('postgres_changes', { event: '*', schema: 'public', table: 'registered_students' }, () => {
+           fetchStats();
+         })
+         .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => {
+           fetchStats();
+         })
+         .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, () => {
+           fetchStats();
+         })
+         .subscribe();
 
       return () => {
         supabase.removeChannel(channel);
+        window.removeEventListener('dashboardStatsNeedRefresh', handleGlobalRefresh);
       };
     }
+
+    return () => {
+      window.removeEventListener('dashboardStatsNeedRefresh', handleGlobalRefresh);
+    };
   }, []);
 
   const statCards = [

@@ -7,7 +7,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { MessageSquare, Settings, Users, Send } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { toast } from 'sonner';
 import axios from 'axios';
 
@@ -28,6 +28,13 @@ export default function WhatsappIntegration() {
   }, []);
 
   const fetchSettings = async () => {
+    if (!isSupabaseConfigured) {
+      const local = localStorage.getItem('hopexavier_mock_whatsapp');
+      if (local) {
+        setSettings(JSON.parse(local));
+      }
+      return;
+    }
     if(!supabase) return;
     try {
       const { data, error } = await supabase.from('whatsapp_settings').select('*');
@@ -51,9 +58,15 @@ export default function WhatsappIntegration() {
   };
 
   const saveSettings = async () => {
-    if(!supabase) return;
     setLoading(true);
     try {
+      if (!isSupabaseConfigured) {
+        localStorage.setItem('hopexavier_mock_whatsapp', JSON.stringify(settings));
+        toast.success('WhatsApp configuration saved securely');
+        return;
+      }
+      if(!supabase) return;
+      
       const updates = [
         { key: 'access_token', value: settings.access_token },
         { key: 'phone_number_id', value: settings.phone_number_id },

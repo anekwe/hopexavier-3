@@ -1,45 +1,71 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { queryWithTimeout } from '@/lib/utils/supabase-timeout';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function AdminStaff() {
   const [staffList, setStaffList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  const fetchStaff = async () => {
-    setLoading(true);
+  const fetchStaff = async (showFullLoader = true) => {
+    if (showFullLoader) setLoading(true);
     try {
-      if (!supabase) throw new Error("Supabase is not configured.");
-      
-      const { data, error } = await supabase
+      if (!isSupabaseConfigured) {
+        const localData = localStorage.getItem('hopexavier_mock_staff');
+        if (localData) {
+          setStaffList(JSON.parse(localData));
+        } else {
+          const seed = [
+            {
+              id: 'mock-staff-1',
+              staff_number: 'HFA/STAFF/001',
+              surname: 'Prince',
+              first_name: 'Xavier',
+              other_names: 'Hope',
+              job_category: 'Academic Staff (Teacher)',
+              gender: 'male',
+              email_address: 'hopexavier@gmail.com',
+              phone_number: '08011223344'
+            }
+          ];
+          localStorage.setItem('hopexavier_mock_staff', JSON.stringify(seed));
+          setStaffList(seed);
+        }
+        return;
+      }
+
+      const { data, error } = await queryWithTimeout(supabase
         .from('staff_documentation')
         .select('*')
-        .order('staff_number', { ascending: false });
+        .order('staff_number', { ascending: false }));
 
       if (error) {
          console.error("Supabase error:", error);
+         toast.error("Failed to fetch staff.");
       } else {
          setStaffList(data || []);
       }
     } catch (e: any) {
       console.error("Error fetching staff:", e);
     } finally {
-      setLoading(false);
+      if (showFullLoader) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchStaff();
+    fetchStaff(true);
 
-    if (supabase) {
+    if (isSupabaseConfigured && supabase) {
       const channel = supabase
         .channel('staff_documentation_changes')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'staff_documentation' }, () => {
-          fetchStaff();
+          fetchStaff(false);
         })
         .subscribe();
 
@@ -190,6 +216,39 @@ export default function AdminStaff() {
                         </div>
                       </DialogContent>
                     </Dialog>
+                    <Button 
+                       variant="outline" 
+                       size="sm" 
+                       onClick={async () => {
+                         if(window.confirm('Are you sure you want to permanently delete this staff record?')) {
+                           try {
+                             const { error } = await (async () => {
+                                  // Instant local filter to update view immediately
+                                  setStaffList(prev => prev.filter(item => item.id !== st.id));
+
+                                  if (!isSupabaseConfigured) {
+                                    const localData = localStorage.getItem('hopexavier_mock_staff');
+                                    if (localData) {
+                                      const parsed = JSON.parse(localData);
+                                      const filtered = parsed.filter((s: any) => s.id !== st.id);
+                                      localStorage.setItem('hopexavier_mock_staff', JSON.stringify(filtered));
+                                    }
+                                    toast.success('Staff record deleted successfully.');
+                                    return { error: null };
+                                  }
+                                  return supabase.from('staff_documentation').delete().eq('id', st.id);
+                               })();
+                             if (error) throw error;
+                             window.dispatchEvent(new Event('dashboardStatsNeedRefresh'));
+                             fetchStaff(false);
+                           } catch (e) {
+                             console.error(e);
+                           }
+                         }
+                       }}
+                    >
+                       <Trash2 className="h-4 w-4 text-red-500" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))

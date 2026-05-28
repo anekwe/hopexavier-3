@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { queryWithTimeout } from '@/lib/utils/supabase-timeout';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,7 +18,8 @@ export default function Posts() {
     slug: '',
     excerpt: '',
     content: '',
-    image_url: ''
+    image_url: '',
+    status: 'Published'
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -27,10 +29,10 @@ export default function Posts() {
     try {
       if (!supabase) throw new Error("Supabase is not configured.");
       
-      const { data, error } = await supabase
+      const { data, error } = await queryWithTimeout(supabase
         .from('posts')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }));
 
       if (error) {
          console.error("Supabase error:", error);
@@ -75,7 +77,7 @@ export default function Posts() {
 
   const openNewForm = () => {
      setEditingPostId(null);
-     setFormData({ title: '', slug: '', excerpt: '', content: '', image_url: '' });
+     setFormData({ title: '', slug: '', excerpt: '', content: '', image_url: '', status: 'Published' });
      setImageFile(null);
      setShowForm(true);
   };
@@ -87,7 +89,8 @@ export default function Posts() {
         slug: post.slug,
         excerpt: post.excerpt || '',
         content: post.content,
-        image_url: post.image_url || ''
+        image_url: post.image_url || '',
+        status: post.status || 'Published'
      });
      setImageFile(null);
      setShowForm(true);
@@ -185,7 +188,12 @@ export default function Posts() {
 
   const handleDelete = async (id: string) => {
     if (!window.confirm('Are you sure you want to delete this post?')) return;
+    
+    // Optimistic delete
+    setPosts(prev => prev.filter(post => post.id !== id));
+    
     try {
+      if (!supabase) return;
       const { error } = await supabase.from('posts').delete().eq('id', id);
       if (error) throw error;
       toast.success('Post deleted successfully!');
@@ -193,6 +201,7 @@ export default function Posts() {
     } catch (error: any) {
       toast.error('Failed to delete post.');
       console.error(error);
+      fetchPosts();
     }
   };
 
@@ -236,6 +245,19 @@ export default function Posts() {
               <Label htmlFor="content">Content</Label>
               <Textarea required id="content" name="content" value={formData.content} onChange={handleChange} rows={6} />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="status">Post Status</Label>
+              <select
+                id="status"
+                name="status"
+                value={formData.status}
+                onChange={handleChange}
+                className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <option value="Published">Published</option>
+                <option value="Draft">Draft</option>
+              </select>
+            </div>
             <Button type="submit" disabled={isSubmitting} className="bg-brand-pink text-white hover:bg-brand-pink/90 font-semibold">
               {isSubmitting ? (editingPostId ? 'Updating...' : 'Publishing...') : (editingPostId ? 'Update Post' : 'Publish Post')}
             </Button>
@@ -249,20 +271,26 @@ export default function Posts() {
             <TableRow>
               <TableHead>Title</TableHead>
               <TableHead>Slug</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead>Date</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
              {loading ? (
-              <TableRow><TableCell colSpan={4} className="text-center py-10 text-muted-foreground">Loading posts...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={5} className="text-center py-10 text-muted-foreground">Loading posts...</TableCell></TableRow>
             ) : posts.length === 0 ? (
-              <TableRow><TableCell colSpan={4} className="text-center py-10 text-muted-foreground">No posts found.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={5} className="text-center py-10 text-muted-foreground">No posts found.</TableCell></TableRow>
             ) : (
               posts.map((post) => (
                 <TableRow key={post.id}>
                   <TableCell className="font-medium">{post.title}</TableCell>
                   <TableCell>{post.slug}</TableCell>
+                  <TableCell>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${post.status === 'Draft' ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'}`}>
+                      {post.status || 'Published'}
+                    </span>
+                  </TableCell>
                   <TableCell>{new Date(post.created_at).toLocaleDateString()}</TableCell>
                   <TableCell className="text-right space-x-2">
                      <Button size="sm" variant="outline" onClick={() => openEditForm(post)} className="text-brand-green border-brand-green/30 hover:bg-brand-green hover:text-white">Edit</Button>

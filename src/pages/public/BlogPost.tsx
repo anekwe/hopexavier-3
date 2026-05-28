@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
+import { queryWithTimeout } from '@/lib/utils/supabase-timeout';
 import { Calendar, ArrowLeft } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 
@@ -14,14 +15,14 @@ export default function BlogPost() {
       setLoading(true);
       try {
         if (!supabase) throw new Error("Supabase is not configured.");
-        const { data, error } = await supabase
+        const { data, error } = await queryWithTimeout(supabase
           .from('posts')
           .select('*')
           .eq('id', id)
-          .single();
+          .single());
 
-        if (error) {
-           throw error;
+        if (error || (data.status && data.status === 'Draft')) {
+           throw error || new Error('Draft');
         }
         setPost(data);
       } catch (e: any) {
